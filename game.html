@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Farm Path Walker</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            touch-action: none;
+            font-family: sans-serif;
+        }
+        canvas {
+            background-color: #78a153;
+            box-shadow: 0 0 15px rgba(0,0,0,0.8);
+            max-width: 100%;
+            max-height: 100vh;
+            object-fit: contain;
+        }
+        /* Chat UI Styles */
+        #chat-container {
+            display: none; /* Hidden by default */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 400px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 10;
+        }
+        #chat-header {
+            background: #2196F3;
+            color: white;
+            padding: 15px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        #chat-log {
+            height: 250px;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: #f5f5f5;
+        }
+        .msg {
+            padding: 10px 15px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .msg.user {
+            background: #4CAF50;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+        .msg.ai {
+            background: #e0e0e0;
+            color: black;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+        #chat-input-area {
+            display: flex;
+            padding: 10px;
+            background: white;
+            border-top: 1px solid #ccc;
+        }
+        #chat-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            outline: none;
+        }
+        #send-btn {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 0 15px;
+            margin-left: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="chat-container">
+        <div id="chat-header">
+            <span>Farmer Bob (AI)</span>
+            <button id="close-btn">&times;</button>
+        </div>
+        <div id="chat-log">
+            <div class="msg ai">Howdy! Clicked on me, did ya? What's on your mind?</div>
+        </div>
+        <div id="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Say something..." autocomplete="off">
+            <button id="send-btn">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = 1080;
+        canvas.height = 1920;
+
+        const bgImage = new Image();
+        bgImage.src = 'farm_background.jpg';
+
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height - 200,
+            width: 50,
+            height: 80,
+            speed: 6,
+            color: '#ff5722'
+        };
+
+        // NEW: NPC Character
+        const npc = {
+            x: canvas.width / 2 + 150,
+            y: canvas.height - 350,
+            width: 50,
+            height: 80,
+            color: '#2196F3' // Blue shirt for the NPC
+        };
+
+        const keys = {
+            w: false, a: false, s: false, d: false,
+            ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false
+        };
+
+        window.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+        });
+
+        let targetX = player.x;
+        let targetY = player.y;
+        let isMovingToTarget = false;
+        let isChatOpen = false;
+
+        // Chat UI Elements
+        const chatContainer = document.getElementById('chat-container');
+        const chatLog = document.getElementById('chat-log');
+        const chatInput = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('send-btn');
+        const closeBtn = document.getElementById('close-btn');
+
+        function getPointerPos(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        // NEW: Check if a click coordinates are inside the NPC's body
+        function isClickOnNPC(x, y) {
+            // NPC drawing origin is bottom-center, so we calculate the bounding box
+            const left = npc.x - npc.width / 2;
+            const right = npc.x + npc.width / 2;
+            const top = npc.y - npc.height;
+            const bottom = npc.y;
+            
+            // Give a generous hit box for mobile tapping (add 20px padding)
+            return (x >= left - 20 && x <= right + 20 && y >= top - 20 && y <= bottom + 20);
+        }
+
+        function openChat() {
+            isChatOpen = true;
+            isMovingToTarget = false; // Stop player walking
+            chatContainer.style.display = 'flex';
+            chatInput.focus();
+        }
+
+        function closeChat() {
+            isChatOpen = false;
+            chatContainer.style.display = 'none';
+        }
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (isChatOpen) return; // Don't move if chat is open
+
+            const pos = getPointerPos(e.touches[0].clientX, e.touches[0].clientY);
+            
+            if (isClickOnNPC(pos.x, pos.y)) {
+                openChat();
+            } else {
+                targetX = pos.x;
+                targetY = pos.y;
+                isMovingToTarget = true;
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (isChatOpen) return;
+
+            const pos = getPointerPos(e.clientX, e.clientY);
+            
+            if (isClickOnNPC(pos.x, pos.y)) {
+                openChat();
+            } else {
+                targetX = pos.x;
+                targetY = pos.y;
+                isMovingToTarget = true;
+            }
+        });
+
+        // Chat Logic Functions
+        function addMessage(text, sender) {
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('msg', sender);
+            msgDiv.textContent = text;
+            chatLog.appendChild(msgDiv);
+            chatLog.scrollTop = chatLog.scrollHeight; // Auto-scroll to bottom
+        }
+
+        // NEW: Simulated AI Response Generator
+        // Replace this function with a real fetch API call to your backend if you want true LLM AI
+        function getAIResponse(text) {
+            const lower = text.toLowerCase();
+            if (lower.includes('hello') || lower.includes('hi')) {
+                return "Well hello there! Nice day for farming.";
+            } else if (lower.includes('crop') || lower.includes('farm')) {
+                return "The crops are doing great. Need rain soon, though.";
+            } else if (lower.includes('weather')) {
+                return "Sky is clear, perfect for working the fields.";
+            } else if (lower.includes('who are you')) {
+                return "I'm Bob, I help manage this land.";
+            } else {
+                const randomReplies = [
+                    "Is that so? Tell me more.",
+                    "Fascinating. I've got to get back to the tractor soon, though.",
+                    "Hmm, I'm not sure about that. Let's ask the chickens.",
+                    "Ain't that the truth!",
+                    "You don't say!"
+                ];
+                return randomReplies[Math.floor(Math.random() * randomReplies.length)];
+            }
+        }
+
+        function handleSend() {
+            const text = chatInput.value.trim();
+            if (text === '') return;
+            
+            addMessage(text, 'user');
+            chatInput.value = '';
+
+            // Simulate AI thinking delay
+            setTimeout(() => {
+                const reply = getAIResponse(text);
+                addMessage(reply, 'ai');
+            }, 600);
+        }
+
+        sendBtn.addEventListener('click', handleSend);
+        closeBtn.addEventListener('click', closeChat);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleSend();
+        });
+
+
+        function update() {
+            if (isChatOpen) return; // Freeze game logic while chatting
+
+            let movedWithKey = false;
+
+            if (keys.w || keys.ArrowUp) { player.y -= player.speed; movedWithKey = true; }
+            if (keys.s || keys.ArrowDown) { player.y += player.speed; movedWithKey = true; }
+            if (keys.a || keys.ArrowLeft) { player.x -= player.speed; movedWithKey = true; }
+            if (keys.d || keys.ArrowRight) { player.x += player.speed; movedWithKey = true; }
+
+            if (movedWithKey) {
+                isMovingToTarget = false;
+            }
+
+            if (isMovingToTarget) {
+                const dx = targetX - player.x;
+                const dy = targetY - player.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance > player.speed) {
+                    player.x += (dx / distance) * player.speed;
+                    player.y += (dy / distance) * player.speed;
+                } else {
+                    player.x = targetX;
+                    player.y = targetY;
+                    isMovingToTarget = false;
+                }
+            }
+
+            player.x = Math.max(player.width / 2, Math.min(canvas.width - player.width / 2, player.x));
+            player.y = Math.max(player.height, Math.min(canvas.height, player.y));
+        }
+
+        function drawCharacter(character) {
+            // Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.beginPath();
+            ctx.ellipse(character.x, character.y, character.width / 1.5, character.height / 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Body
+            ctx.fillStyle = character.color;
+            ctx.fillRect(character.x - character.width / 2, character.y - character.height, character.width, character.height);
+            
+            // Eyes
+            ctx.fillStyle = 'white';
+            ctx.fillRect(character.x - 15, character.y - character.height + 15, 10, 10);
+            ctx.fillRect(character.x + 5, character.y - character.height + 15, 10, 10);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(character.x - 12, character.y - character.height + 18, 4, 4);
+            ctx.fillRect(character.x + 8, character.y - character.height + 18, 4, 4);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (bgImage.complete && bgImage.naturalWidth !== 0) {
+                ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = '#78a153';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'white';
+                ctx.font = '50px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Waiting for farm_background.jpg...', canvas.width / 2, canvas.height / 2);
+            }
+
+            if (isMovingToTarget && !isChatOpen) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.beginPath();
+                ctx.arc(targetX, targetY, 15, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw characters in order of Y coordinate so the lower one overlaps the higher one (isometric depth)
+            if (player.y < npc.y) {
+                drawCharacter(player);
+                drawCharacter(npc);
+            } else {
+                drawCharacter(npc);
+                drawCharacter(player);
+            }
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
