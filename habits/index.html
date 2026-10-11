@@ -88,6 +88,21 @@
   }
   #account-btn.secondary { background: var(--line); color: var(--text); }
 
+  /* Habit editor */
+  .habit-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+  .habit-row input, #new-habit {
+    flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--text); padding: 10px; font-size: .95rem; user-select: text;
+  }
+  .habit-row button, #add-habit {
+    flex-shrink: 0; border: 0; border-radius: 10px; height: 40px; min-width: 40px;
+    background: var(--line); color: var(--text); font-size: 1rem;
+  }
+  .habit-row button:disabled { opacity: .3; }
+  #add-habit { background: var(--accent); color: #fff; font-weight: 600; padding: 0 14px; font-size: .9rem; }
+  .add-row { display: flex; gap: 6px; margin-top: 12px; }
+  .empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: .9rem; }
+
   /* Settings screen */
   body.settings-open #main-view { display: none; }
   body:not(.settings-open) #settings-view { display: none; }
@@ -150,6 +165,16 @@
       <div class="week-nav"><button id="close-settings" aria-label="Back to habits">✕</button></div>
     </header>
 
+    <h2>Your habits</h2>
+    <div class="panel">
+      <div id="habit-list"></div>
+      <form class="add-row" id="add-form">
+        <input id="new-habit" placeholder="Add a habit, e.g. Read 10 pages" maxlength="40" autocomplete="off">
+        <button id="add-habit" type="submit">Add</button>
+      </form>
+    </div>
+    <p class="hint" style="text-align:left">Rename by editing a name. Removing a habit hides it but keeps its history.</p>
+
     <h2>Account</h2>
     <div id="account">
       <span id="account-status"></span>
@@ -177,12 +202,14 @@
   import { startCloud } from './cloud.js';
   import { runQuery, EXAMPLES, SCHEMA } from './query.js';
 
-  const HABITS = [
+  // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
+  const DEFAULT_HABITS = [
     { id: 'caffeine', name: 'No Caffeine' },
     { id: 'sugar', name: 'No Sugar' },
     { id: 'exercise', name: 'Exercise' },
     { id: 'nails', name: 'No Nail Biting' },
   ];
+  const HABITS_KEY = 'habit-tracker-habits';
   // Tapping cycles through these: blank → ✅ → 😐 → ❌ → blank
   const STATES = ['', 'tick', 'avg', 'cross'];
   const EMOJI = { tick: '✅', avg: '😐', cross: '❌' };
@@ -192,6 +219,7 @@
 
   // data shape: { "2026-10-11": { caffeine: "tick", sugar: "cross" }, ... }
   let data = load();
+  let habits = loadHabits();
   let cloud = null; // set once cloud sync has loaded
   let weekOffset = 0; // 0 = this week, -1 = last week, ...
 
@@ -202,6 +230,14 @@
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
   }
+  function loadHabits() {
+    try { return JSON.parse(localStorage.getItem(HABITS_KEY)) || DEFAULT_HABITS; }
+    catch { return DEFAULT_HABITS; }
+  }
+  function saveHabits() {
+    try { localStorage.setItem(HABITS_KEY, JSON.stringify(habits)); } catch {}
+  }
+  const activeHabits = () => habits.filter(h => !h.archived);
 
   function dateKey(d) {
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -253,10 +289,17 @@
 
     const body = document.getElementById('body');
     body.innerHTML = '';
-    for (const habit of HABITS) {
+    if (!activeHabits().length) {
+      body.innerHTML = '<tr><td colspan="8" class="empty">No habits yet. Add some in ⚙︎ Settings.</td></tr>';
+    }
+    for (const habit of activeHabits()) {
       const tr = document.createElement('tr');
       const s = streak(habit.id);
-      tr.innerHTML = `<td class="habit">${habit.name}<span class="streak">${s ? `🔥 ${s} day${s === 1 ? '' : 's'}` : 'No streak'}</span></td>`;
+      const nameCell = document.createElement('td');
+      nameCell.className = 'habit';
+      nameCell.textContent = habit.name;
+      nameCell.insertAdjacentHTML('beforeend', `<span class="streak">${s ? `🔥 ${s} day${s === 1 ? '' : 's'}` : 'No streak'}</span>`);
+      tr.appendChild(nameCell);
       for (const d of days) {
         const key = dateKey(d);
         const value = data[key]?.[habit.id] || '';
@@ -306,7 +349,7 @@
   });
 
   // Re-render when the app comes back to the foreground (the day may have changed).
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { data = load(); render(); } });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { data = load(); habits = loadHabits(); render(); } });
 
   // Ask the browser not to clear our data when the phone is low on space.
   if (navigator.storage?.persist) navigator.storage.persist();
@@ -331,7 +374,7 @@
     try { localStorage.setItem(SQL_KEY, sql); } catch {}
     resultBox.innerHTML = '<p class="meta">Running…</p>';
     try {
-      const { columns, rows } = await runQuery(sql, data, HABITS);
+      const { columns, rows } = await runQuery(sql, data, habits);
       if (!columns.length) {
         resultBox.innerHTML = '<p class="meta">No results.</p>';
         return;
@@ -359,7 +402,79 @@
   document.getElementById('run').addEventListener('click', run);
   sqlBox.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) run(); });
 
+  // ---- Habit editor ----
+  const habitList = document.getElementById('habit-list');
+
+  function habitsChanged() {
+    saveHabits();
+    renderHabitEditor();
+    render();
+    try { cloud?.saveHabits(habits); } catch (err) { console.error(err); }
+  }
+
+  function moveHabit(habit, delta) {
+    const active = activeHabits();
+    const other = active[active.indexOf(habit) + delta];
+    if (!other) return;
+    const i = habits.indexOf(habit), j = habits.indexOf(other);
+    [habits[i], habits[j]] = [habits[j], habits[i]];
+    habitsChanged();
+  }
+
+  function renderHabitEditor() {
+    habitList.innerHTML = '';
+    const active = activeHabits();
+    active.forEach((habit, index) => {
+      const row = document.createElement('div');
+      row.className = 'habit-row';
+      const input = document.createElement('input');
+      input.value = habit.name;
+      input.maxLength = 40;
+      input.setAttribute('aria-label', 'Habit name');
+      input.addEventListener('change', () => {
+        const name = input.value.trim();
+        if (!name) { input.value = habit.name; return; }
+        habit.name = name;
+        habitsChanged();
+      });
+      const up = Object.assign(document.createElement('button'), { textContent: '↑', disabled: index === 0 });
+      up.setAttribute('aria-label', `Move ${habit.name} up`);
+      up.addEventListener('click', () => moveHabit(habit, -1));
+      const down = Object.assign(document.createElement('button'), { textContent: '↓', disabled: index === active.length - 1 });
+      down.setAttribute('aria-label', `Move ${habit.name} down`);
+      down.addEventListener('click', () => moveHabit(habit, 1));
+      const remove = Object.assign(document.createElement('button'), { textContent: '✕' });
+      remove.setAttribute('aria-label', `Remove ${habit.name}`);
+      remove.addEventListener('click', () => {
+        if (!confirm(`Remove “${habit.name}”? Its past entries are kept.`)) return;
+        habit.archived = true;
+        habitsChanged();
+      });
+      row.append(input, up, down, remove);
+      habitList.appendChild(row);
+    });
+  }
+
+  document.getElementById('add-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const field = document.getElementById('new-habit');
+    const name = field.value.trim();
+    if (!name) return;
+    // Re-adding a removed habit with the same name brings its history back.
+    const old = habits.find(h => h.archived && h.name.toLowerCase() === name.toLowerCase());
+    if (old) {
+      delete old.archived;
+      habits.splice(habits.indexOf(old), 1);
+      habits.push(old);
+    } else {
+      habits.push({ id: 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name });
+    }
+    field.value = '';
+    habitsChanged();
+  });
+
   document.getElementById('open-settings').addEventListener('click', () => {
+    renderHabitEditor();
     document.body.classList.add('settings-open');
     window.scrollTo(0, 0);
   });
@@ -372,6 +487,15 @@
   cloud = await startCloud({
     getData: () => data,
     setData: newData => { data = newData; save(); render(); },
+    getHabits: () => habits,
+    setHabits: newHabits => {
+      if (JSON.stringify(newHabits) === JSON.stringify(habits)) return;
+      habits = newHabits;
+      saveHabits();
+      render();
+      // Don't redraw the editor while you're typing in it.
+      if (!habitList.contains(document.activeElement)) renderHabitEditor();
+    },
   });
   document.getElementById('no-cloud').hidden = !!cloud;
 </script>

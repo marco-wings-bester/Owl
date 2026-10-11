@@ -19,7 +19,13 @@ const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 const EMOJI = { tick: '✅', avg: '😐', cross: '❌' };
 const SCORE = { tick: 1, avg: 0.5, cross: 0 };
 
-export const SCHEMA = `habits (
+export const SCHEMA = `habit_list (
+  habit_id  TEXT
+  habit     TEXT
+  active    INTEGER  -- 1 = tracked, 0 = removed
+)
+
+habits (
   date      TEXT  -- '2026-10-11'
   weekday   TEXT  -- 'Monday' … 'Sunday'
   habit     TEXT  -- 'No Sugar', 'Exercise', …
@@ -34,7 +40,7 @@ export const EXAMPLES = [
   { label: 'Ticks per habit', sql: "SELECT habit, COUNT(*) AS ticks\nFROM habits\nWHERE status = 'tick'\nGROUP BY habit\nORDER BY ticks DESC;" },
   { label: 'Last 30 days', sql: "SELECT habit,\n  ROUND(100.0 * SUM(status = 'tick') / COUNT(*)) AS pct_done,\n  COUNT(*) AS days_logged\nFROM habits\nWHERE date >= date('now', 'localtime', '-30 days')\nGROUP BY habit;" },
   { label: 'Best weekday', sql: 'SELECT weekday, ROUND(AVG(score) * 100) AS score_pct\nFROM habits\nGROUP BY weekday\nORDER BY score_pct DESC;' },
-  { label: 'Perfect days', sql: "SELECT date\nFROM habits\nGROUP BY date\nHAVING SUM(status = 'tick') = 4\nORDER BY date DESC;" },
+  { label: 'Perfect days', sql: "SELECT date\nFROM habits\nWHERE habit_id IN (SELECT habit_id FROM habit_list WHERE active = 1)\nGROUP BY date\nHAVING SUM(status = 'tick') = (SELECT COUNT(*) FROM habit_list WHERE active = 1)\nORDER BY date DESC;" },
 ];
 
 // Returns { columns, rows } for the last statement that produced results.
@@ -44,6 +50,8 @@ export async function runQuery(sql, data, habits) {
   try {
     db.run(`CREATE TABLE habits (date TEXT, weekday TEXT, habit TEXT, habit_id TEXT,
                                  status TEXT, emoji TEXT, score REAL)`);
+    db.run('CREATE TABLE habit_list (habit_id TEXT, habit TEXT, active INTEGER)');
+    for (const h of habits) db.run('INSERT INTO habit_list VALUES (?, ?, ?)', [h.id, h.name, h.archived ? 0 : 1]);
     const names = Object.fromEntries(habits.map(h => [h.id, h.name]));
     const insert = db.prepare('INSERT INTO habits VALUES (?, ?, ?, ?, ?, ?, ?)');
     for (const [date, entries] of Object.entries(data)) {

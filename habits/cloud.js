@@ -1,11 +1,12 @@
 // Optional Google sign-in and cloud sync using Firebase.
-// Each user's habits are stored in one Firestore document: users/{uid} = { days: { "2026-10-11": { sugar: "tick" } } }
+// Each user's data is one Firestore document:
+//   users/{uid} = { days: { "2026-10-11": { sugar: "tick" } }, habits: [{ id: "sugar", name: "No Sugar" }] }
 // The phone's local copy is still kept, so the app works offline and without signing in.
 import { firebaseConfig } from './firebase-config.js';
 
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
 
-export async function startCloud({ getData, setData }) {
+export async function startCloud({ getData, setData, getHabits, setHabits }) {
   if (!firebaseConfig) return null;
 
   let initializeApp, auth, fs;
@@ -46,6 +47,7 @@ export async function startCloud({ getData, setData }) {
 
   // Taps made before the first sync finishes are uploaded once it's done.
   const pending = new Map();
+  let habitsPending = false;
   function upload(day, habitId, value) {
     const path = new fs.FieldPath('days', day, habitId);
     return fs.updateDoc(docRef, path, value || fs.deleteField());
@@ -120,20 +122,37 @@ export async function startCloud({ getData, setData }) {
       for (const [day, habits] of Object.entries(getData())) {
         merged[day] = { ...merged[day], ...habits };
       }
-      await fs.setDoc(ref, { days: merged });
+      // Habit list: the cloud's wins if it has one (e.g. set up on another phone), otherwise upload this phone's.
+      const cloudHabits = snap.data()?.habits;
+      const habits = cloudHabits && !habitsPending ? cloudHabits : getHabits();
+      await fs.setDoc(ref, { days: merged, habits });
+      setHabits(habits);
       docRef = ref;
       for (const [cell, value] of pending) upload(...cell.split('|'), value).catch(reportError);
       pending.clear();
+      habitsPending = false;
       clearError(user);
 
       // From now on the cloud copy is the source of truth; changes from other devices show up live.
-      unsubscribe = fs.onSnapshot(ref, s => setData(s.data()?.days || {}), reportError);
+      unsubscribe = fs.onSnapshot(ref, s => {
+        setData(s.data()?.days || {});
+        if (s.data()?.habits) setHabits(s.data().habits);
+      }, reportError);
     } catch (err) {
       reportError(err);
     }
   });
 
   return {
+    saveHabits(habits) {
+      if (!authInstance.currentUser) return;
+      if (!docRef) {
+        habitsPending = true;
+        return;
+      }
+      fs.updateDoc(docRef, { habits }).then(() => clearError(authInstance.currentUser), reportError);
+    },
+
     saveCell(day, habitId, value) {
       if (!authInstance.currentUser) return;
       if (!docRef) {
