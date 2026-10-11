@@ -103,6 +103,12 @@
   .add-row { display: flex; gap: 6px; margin-top: 12px; }
   .empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: .9rem; }
 
+  #share {
+    width: 100%; border: 0; border-radius: 12px; padding: 13px;
+    background: var(--accent); color: #fff; font-weight: 600; font-size: .95rem;
+  }
+  #share-note { margin: 8px 4px 0; text-align: left; }
+
   /* Settings screen */
   body.settings-open #main-view { display: none; }
   body:not(.settings-open) #settings-view { display: none; }
@@ -181,6 +187,10 @@
       <button id="account-btn"></button>
     </div>
     <p class="hint" id="no-cloud" style="text-align:left" hidden>Cloud sync isn't available right now. Your data is saved on this phone.</p>
+
+    <h2>Share</h2>
+    <button id="share">📤 Share this app</button>
+    <p class="hint" id="share-note">Everyone who signs in gets their own private habits.</p>
 
     <h2>Query your data</h2>
     <div class="panel">
@@ -471,6 +481,24 @@
     }
     field.value = '';
     habitsChanged();
+  });
+
+  // ---- Share ----
+  document.getElementById('share').addEventListener('click', async () => {
+    const url = location.origin + location.pathname;
+    const note = document.getElementById('share-note');
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Habits', text: 'A simple habit tracker. Tap ✅ 😐 ❌ each day:', url });
+      } catch {} // closing the share sheet isn't an error
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      note.textContent = '✅ Link copied. Paste it in a message to share.';
+    } catch {
+      note.textContent = `Share this link: ${url}`;
+    }
   });
 
   document.getElementById('open-settings').addEventListener('click', () => {
