@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1f6f5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Habits">
+<title>Habits</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --bg: #f4f6f5;
+    --card: #ffffff;
+    --text: #1d2422;
+    --muted: #6b7672;
+    --line: #e2e7e5;
+    --accent: #1f6f5c;
+    --today: #e3f2ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121615;
+      --card: #1b211f;
+      --text: #e8eeec;
+      --muted: #8f9b97;
+      --line: #2a3330;
+      --accent: #5cc4a6;
+      --today: #1f3530;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top) 16px calc(16px + env(safe-area-inset-bottom));
+    max-width: 560px;
+    margin: 0 auto;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 16px 0 12px; }
+  h1 { font-size: 1.4rem; margin: 0; }
+  .week-nav { display: flex; align-items: center; gap: 4px; }
+  .week-nav button {
+    border: 0; background: var(--card); color: var(--text);
+    width: 40px; height: 40px; border-radius: 10px; font-size: 1.2rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  }
+  .week-nav button:disabled { opacity: .35; }
+  #today-btn { width: auto; padding: 0 12px; font-size: .9rem; }
+  #range { color: var(--muted); font-size: .9rem; margin: 0 0 10px; }
+
+  .card { background: var(--card); border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { text-align: center; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: 0; }
+  thead th { font-size: .72rem; font-weight: 600; color: var(--muted); padding: 8px 0 6px; }
+  thead th .num { display: block; font-size: 1rem; color: var(--text); }
+  th.habit { width: 30%; text-align: left; padding-left: 12px; }
+  td.habit { text-align: left; padding: 6px 4px 6px 12px; font-size: .85rem; font-weight: 600; line-height: 1.2; }
+  td.habit .streak { display: block; font-weight: 400; color: var(--muted); font-size: .75rem; margin-top: 2px; }
+  .is-today { background: var(--today); }
+  thead th.is-today .num { color: var(--accent); }
+  td.cell { padding: 0; }
+  td.cell button {
+    width: 100%; height: 56px; border: 0; background: transparent;
+    font-size: 1.45rem; color: var(--text); cursor: pointer;
+  }
+  td.cell button:active { transform: scale(.88); }
+  td.cell button:disabled { cursor: default; opacity: .25; }
+  td.cell button .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+
+  .legend { display: flex; justify-content: center; gap: 16px; color: var(--muted); font-size: .85rem; margin: 14px 0 4px; }
+  .hint { text-align: center; color: var(--muted); font-size: .78rem; margin: 4px 0 0; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Habits</h1>
+    <div class="week-nav">
+      <button id="prev" aria-label="Previous week">‹</button>
+      <button id="today-btn">Today</button>
+      <button id="next" aria-label="Next week">›</button>
+    </div>
+  </header>
+  <p id="range"></p>
+  <div class="card">
+    <table>
+      <thead><tr id="head"></tr></thead>
+      <tbody id="body"></tbody>
+    </table>
+  </div>
+  <div class="legend"><span>✅ done</span><span>😐 so-so</span><span>❌ missed</span></div>
+  <p class="hint">Tap a square to change it · swipe to switch weeks</p>
+
+<script>
+  const HABITS = [
+    { id: 'caffeine', name: 'No Caffeine' },
+    { id: 'sugar', name: 'No Sugar' },
+    { id: 'exercise', name: 'Exercise' },
+    { id: 'nails', name: 'No Nail Biting' },
+  ];
+  // Tapping cycles through these: blank → ✅ → 😐 → ❌ → blank
+  const STATES = ['', 'tick', 'avg', 'cross'];
+  const EMOJI = { tick: '✅', avg: '😐', cross: '❌' };
+  const LABEL = { '': 'blank', tick: 'done', avg: 'so-so', cross: 'missed' };
+  const STORAGE_KEY = 'habit-tracker-v1';
+  const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  // data shape: { "2026-10-11": { caffeine: "tick", sugar: "cross" }, ... }
+  let data = load();
+  let weekOffset = 0; // 0 = this week, -1 = last week, ...
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+    catch { return {}; }
+  }
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+  }
+
+  function dateKey(d) {
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${day}`;
+  }
+  function startOfToday() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  function addDays(d, n) {
+    const r = new Date(d);
+    r.setDate(r.getDate() + n);
+    return r;
+  }
+  function weekDays(offset) {
+    const today = startOfToday();
+    const monday = addDays(today, -((today.getDay() + 6) % 7) + offset * 7);
+    return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+  }
+
+  // Streak = consecutive ✅ days up to today. If today is still blank,
+  // count back from yesterday so the streak isn't lost before you log today.
+  function streak(habitId) {
+    let d = startOfToday();
+    if (!data[dateKey(d)]?.[habitId]) d = addDays(d, -1);
+    let count = 0;
+    while (data[dateKey(d)]?.[habitId] === 'tick') {
+      count++;
+      d = addDays(d, -1);
+    }
+    return count;
+  }
+
+  function render() {
+    const days = weekDays(weekOffset);
+    const todayKey = dateKey(startOfToday());
+    const fmt = { day: 'numeric', month: 'short' };
+    document.getElementById('range').textContent =
+      `${days[0].toLocaleDateString(undefined, fmt)} – ${days[6].toLocaleDateString(undefined, fmt)}`;
+    document.getElementById('next').disabled = weekOffset >= 0;
+    document.getElementById('today-btn').disabled = weekOffset === 0;
+
+    const head = document.getElementById('head');
+    head.innerHTML = '<th class="habit"></th>' + days.map((d, i) =>
+      `<th class="${dateKey(d) === todayKey ? 'is-today' : ''}">${DAY_NAMES[i]}<span class="num">${d.getDate()}</span></th>`
+    ).join('');
+
+    const body = document.getElementById('body');
+    body.innerHTML = '';
+    for (const habit of HABITS) {
+      const tr = document.createElement('tr');
+      const s = streak(habit.id);
+      tr.innerHTML = `<td class="habit">${habit.name}<span class="streak">${s ? `🔥 ${s} day${s === 1 ? '' : 's'}` : 'No streak'}</span></td>`;
+      for (const d of days) {
+        const key = dateKey(d);
+        const value = data[key]?.[habit.id] || '';
+        const td = document.createElement('td');
+        td.className = 'cell' + (key === todayKey ? ' is-today' : '');
+        const btn = document.createElement('button');
+        btn.disabled = key > todayKey;
+        btn.innerHTML = value ? EMOJI[value] : '<span class="dot"></span>';
+        btn.setAttribute('aria-label', `${habit.name}, ${d.toDateString()}: ${LABEL[value]}`);
+        btn.addEventListener('click', () => cycle(key, habit.id));
+        td.appendChild(btn);
+        tr.appendChild(td);
+      }
+      body.appendChild(tr);
+    }
+  }
+
+  function cycle(key, habitId) {
+    const current = data[key]?.[habitId] || '';
+    const next = STATES[(STATES.indexOf(current) + 1) % STATES.length];
+    data[key] = data[key] || {};
+    if (next) data[key][habitId] = next;
+    else delete data[key][habitId];
+    if (!Object.keys(data[key]).length) delete data[key];
+    save();
+    if (navigator.vibrate) navigator.vibrate(10);
+    render();
+  }
+
+  function changeWeek(delta) {
+    weekOffset = Math.min(0, weekOffset + delta);
+    render();
+  }
+  document.getElementById('prev').addEventListener('click', () => changeWeek(-1));
+  document.getElementById('next').addEventListener('click', () => changeWeek(1));
+  document.getElementById('today-btn').addEventListener('click', () => { weekOffset = 0; render(); });
+
+  let touchX = null, touchY = null;
+  document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; touchY = e.touches[0].clientY; }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    const dy = e.changedTouches[0].clientY - touchY;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) changeWeek(dx < 0 ? 1 : -1);
+    touchX = null;
+  });
+
+  // Re-render when the app comes back to the foreground (the day may have changed).
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { data = load(); render(); } });
+
+  // Ask the browser not to clear our data when the phone is low on space.
+  if (navigator.storage?.persist) navigator.storage.persist();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+
+  render();
+</script>
+</body>
+</html>
