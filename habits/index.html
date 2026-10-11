@@ -75,6 +75,18 @@
 
   .legend { display: flex; justify-content: center; gap: 16px; color: var(--muted); font-size: .85rem; margin: 14px 0 4px; }
   .hint { text-align: center; color: var(--muted); font-size: .78rem; margin: 4px 0 0; }
+
+  #account {
+    display: none; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--card); border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    padding: 12px 14px; margin-top: 20px; font-size: .85rem;
+  }
+  #account-status { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+  #account-btn {
+    flex-shrink: 0; border: 0; border-radius: 10px; padding: 9px 14px;
+    background: var(--accent); color: #fff; font-weight: 600; font-size: .85rem;
+  }
+  #account-btn.secondary { background: var(--line); color: var(--text); }
 </style>
 </head>
 <body>
@@ -95,8 +107,14 @@
   </div>
   <div class="legend"><span>✅ done</span><span>😐 so-so</span><span>❌ missed</span></div>
   <p class="hint">Tap a square to change it · swipe to switch weeks</p>
+  <div id="account">
+    <span id="account-status"></span>
+    <button id="account-btn"></button>
+  </div>
 
-<script>
+<script type="module">
+  import { startCloud } from './cloud.js';
+
   const HABITS = [
     { id: 'caffeine', name: 'No Caffeine' },
     { id: 'sugar', name: 'No Sugar' },
@@ -112,6 +130,7 @@
 
   // data shape: { "2026-10-11": { caffeine: "tick", sugar: "cross" }, ... }
   let data = load();
+  let cloud = null; // set once cloud sync has loaded
   let weekOffset = 0; // 0 = this week, -1 = last week, ...
 
   function load() {
@@ -201,6 +220,7 @@
     else delete data[key][habitId];
     if (!Object.keys(data[key]).length) delete data[key];
     save();
+    cloud?.saveCell(key, habitId, next);
     if (navigator.vibrate) navigator.vibrate(10);
     render();
   }
@@ -231,6 +251,12 @@
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
   render();
+
+  // Optional Google sign-in + cloud sync. Does nothing until firebase-config.js is filled in.
+  cloud = await startCloud({
+    getData: () => data,
+    setData: newData => { data = newData; save(); render(); },
+  });
 </script>
 </body>
 </html>
