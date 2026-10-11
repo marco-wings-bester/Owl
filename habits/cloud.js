@@ -31,31 +31,64 @@ export async function startCloud({ getData, setData }) {
   let docRef = null;
   let unsubscribe = null;
 
+  // Google One Tap: a small "Continue as …" sheet instead of a full-page sign-in.
+  // Falls back to the regular popup if One Tap isn't set up, can't load, or Google skips it.
+  const oneTap = await loadOneTap(firebaseConfig.googleClientId, async idToken => {
+    try {
+      await auth.signInWithCredential(authInstance, auth.GoogleAuthProvider.credential(idToken));
+    } catch (err) {
+      showSignedOut(`Sign-in failed: ${err.code || err.message}`);
+    }
+  });
+
+  let oneTapSkipped = false;
+
+  async function signInWithPopup() {
+    try {
+      await auth.signInWithPopup(authInstance, new auth.GoogleAuthProvider());
+    } catch (err) {
+      if (err.code === 'auth/popup-blocked') showSignedOut('Tap “Sign in with Google” again');
+      else if (err.code !== 'auth/popup-closed-by-user') showSignedOut(`Sign-in failed: ${err.code || err.message}`);
+    }
+  }
+
+  function signIn() {
+    if (!oneTap || oneTapSkipped) return signInWithPopup();
+    oneTap.prompt(notification => {
+      if (notification.isSkippedMoment()) {
+        // Google chose not to show One Tap (e.g. recently dismissed): use the popup from now on.
+        oneTapSkipped = true;
+        signInWithPopup();
+      }
+    });
+  }
+
   function showSignedOut(message) {
     status.textContent = message || 'Sign in to back up and sync';
     btn.textContent = 'Sign in with Google';
     btn.className = '';
-    btn.onclick = async () => {
-      try {
-        await auth.signInWithPopup(authInstance, new auth.GoogleAuthProvider());
-      } catch (err) {
-        if (err.code !== 'auth/popup-closed-by-user') showSignedOut(`Sign-in failed: ${err.code || err.message}`);
-      }
-    };
+    btn.onclick = signIn;
   }
 
   function showSignedIn(user) {
     status.textContent = `☁️ Synced · ${user.email}`;
     btn.textContent = 'Sign out';
     btn.className = 'secondary';
-    btn.onclick = () => auth.signOut(authInstance);
+    btn.onclick = () => {
+      oneTap?.disableAutoSelect(); // so One Tap doesn't sign you straight back in
+      auth.signOut(authInstance);
+    };
   }
 
   auth.onAuthStateChanged(authInstance, async user => {
     unsubscribe?.();
     unsubscribe = null;
     docRef = null;
-    if (!user) return showSignedOut();
+    if (!user) {
+      showSignedOut();
+      oneTap?.prompt(); // offer "Continue as …" straight away; Google rate-limits this if dismissed
+      return;
+    }
 
     showSignedIn(user);
     const ref = fs.doc(db, 'users', user.uid);
@@ -86,4 +119,30 @@ export async function startCloud({ getData, setData }) {
       });
     },
   };
+}
+
+// Loads Google Identity Services and returns its One Tap API, or null if unavailable.
+async function loadOneTap(clientId, onIdToken) {
+  if (!clientId) return null;
+  try {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  } catch {
+    return null;
+  }
+  const id = window.google.accounts.id;
+  id.initialize({
+    client_id: clientId,
+    callback: response => onIdToken(response.credential),
+    auto_select: true, // returning users are signed in without a tap
+    cancel_on_tap_outside: true,
+    use_fedcm_for_prompt: true, // Chrome's native account sheet
+    context: 'signin',
+  });
+  return id;
 }
