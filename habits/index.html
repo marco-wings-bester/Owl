@@ -141,6 +141,7 @@
   </div>
   <div class="legend"><span>✅ done</span><span>😐 so-so</span><span>❌ missed</span></div>
   <p class="hint">Tap a square to change it · swipe to switch weeks</p>
+  <p class="hint" id="sync-warning" hidden style="color:#d9534f"></p>
   </div>
 
   <div id="settings-view">
@@ -281,9 +282,9 @@
     else delete data[key][habitId];
     if (!Object.keys(data[key]).length) delete data[key];
     save();
-    cloud?.saveCell(key, habitId, next);
-    if (navigator.vibrate) navigator.vibrate(10);
     render();
+    if (navigator.vibrate) navigator.vibrate(10);
+    try { cloud?.saveCell(key, habitId, next); } catch (err) { console.error(err); }
   }
 
   function changeWeek(delta) {

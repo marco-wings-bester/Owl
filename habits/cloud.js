@@ -28,8 +28,28 @@ export async function startCloud({ getData, setData }) {
   const btn = document.getElementById('account-btn');
   box.style.display = 'flex';
 
+  const warning = document.getElementById('sync-warning');
   let docRef = null;
   let unsubscribe = null;
+
+  // Sync problems are shown in Settings and on the main screen, so they're never silent.
+  function reportError(err) {
+    const message = `⚠️ Sync error: ${err.code || err.message}`;
+    status.textContent = message;
+    warning.textContent = `${message} · your taps are saved on this phone`;
+    warning.hidden = false;
+  }
+  function clearError(user) {
+    warning.hidden = true;
+    if (user) status.textContent = `☁️ Synced · ${user.email}`;
+  }
+
+  // Taps made before the first sync finishes are uploaded once it's done.
+  const pending = new Map();
+  function upload(day, habitId, value) {
+    const path = new fs.FieldPath('days', day, habitId);
+    return fs.updateDoc(docRef, path, value || fs.deleteField());
+  }
 
   // Google One Tap: a small "Continue as …" sheet instead of a full-page sign-in.
   // Falls back to the regular popup if One Tap isn't set up, can't load, or Google skips it.
@@ -102,21 +122,29 @@ export async function startCloud({ getData, setData }) {
       }
       await fs.setDoc(ref, { days: merged });
       docRef = ref;
+      for (const [cell, value] of pending) upload(...cell.split('|'), value).catch(reportError);
+      pending.clear();
+      clearError(user);
 
       // From now on the cloud copy is the source of truth; changes from other devices show up live.
-      unsubscribe = fs.onSnapshot(ref, s => setData(s.data()?.days || {}));
+      unsubscribe = fs.onSnapshot(ref, s => setData(s.data()?.days || {}), reportError);
     } catch (err) {
-      status.textContent = `⚠️ Sync error: ${err.code || err.message}`;
+      reportError(err);
     }
   });
 
   return {
     saveCell(day, habitId, value) {
-      if (!docRef) return;
-      const path = new fs.FieldPath('days', day, habitId);
-      fs.updateDoc(docRef, path, value || fs.deleteField()).catch(err => {
-        status.textContent = `⚠️ Sync error: ${err.code || err.message}`;
-      });
+      if (!authInstance.currentUser) return;
+      if (!docRef) {
+        pending.set(`${day}|${habitId}`, value);
+        return;
+      }
+      try {
+        upload(day, habitId, value).then(() => clearError(authInstance.currentUser), reportError);
+      } catch (err) {
+        reportError(err);
+      }
     },
   };
 }
