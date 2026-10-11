@@ -1,5 +1,5 @@
 // Caches the app so it opens offline. Bump CACHE when you change any file.
-const CACHE = 'habits-v4';
+const CACHE = 'habits-v5';
 const FILES = ['./', 'index.html', 'cloud.js', 'firebase-config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

@@ -10,5 +10,5 @@ export const firebaseConfig = {
   appId: '1:275085881186:web:ffba8127a8f23a3f37063b',
   // Web client ID for Google One Tap (Firebase → Authentication → Sign-in method → Google →
   // Web SDK configuration). Leave null to use the regular full-page Google sign-in.
-  googleClientId: null,
+  googleClientId: '275085881186-7q4m2ooii9ebic7c46tv7dft5leqsh8k.apps.googleusercontent.com',
 };
