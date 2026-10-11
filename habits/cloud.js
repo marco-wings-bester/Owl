@@ -8,11 +8,16 @@ const SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
 export async function startCloud({ getData, setData }) {
   if (!firebaseConfig) return null;
 
-  const [{ initializeApp }, auth, fs] = await Promise.all([
-    import(`${SDK}/firebase-app.js`),
-    import(`${SDK}/firebase-auth.js`),
-    import(`${SDK}/firebase-firestore.js`),
-  ]);
+  let initializeApp, auth, fs;
+  try {
+    [{ initializeApp }, auth, fs] = await Promise.all([
+      import(`${SDK}/firebase-app.js`),
+      import(`${SDK}/firebase-auth.js`),
+      import(`${SDK}/firebase-firestore.js`),
+    ]);
+  } catch {
+    return null; // offline or blocked: the app keeps working with on-phone data only
+  }
 
   const app = initializeApp(firebaseConfig);
   const authInstance = auth.getAuth(app);
