@@ -67,8 +67,9 @@
   thead th.is-today .num { color: var(--accent); }
   td.cell { padding: 0; }
   td.cell button {
-    width: 100%; height: 56px; border: 0; background: transparent;
-    font-size: 1.45rem; color: var(--text); cursor: pointer;
+    width: 100%; height: 56px; border: 0; padding: 0; background: transparent;
+    display: flex; align-items: center; justify-content: center; /* centres even if the emoji is wider than the column */
+    font-size: 1.35rem; line-height: 1; color: var(--text); cursor: pointer;
   }
   td.cell button:active { transform: scale(.88); }
   td.cell button:disabled { cursor: default; opacity: .25; }
@@ -233,8 +234,8 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=11';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=11';
+  import { startCloud } from './cloud.js?v=12';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=12';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   const DEFAULT_HABITS = [
