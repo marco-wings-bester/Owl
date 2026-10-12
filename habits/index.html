@@ -232,8 +232,9 @@
   </div>
 
 <script type="module">
-  import { startCloud } from './cloud.js';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js';
+  // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
+  import { startCloud } from './cloud.js?v=11';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=11';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   const DEFAULT_HABITS = [

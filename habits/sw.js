@@ -1,6 +1,6 @@
-// Caches the app so it opens offline. Bump CACHE when you change any file.
-const CACHE = 'habits-v10';
-const FILES = ['./', 'index.html', 'cloud.js', 'firebase-config.js', 'query.js', 'vendor/sql-wasm.js', 'vendor/sql-wasm.wasm', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+// Caches the app so it opens offline. Bump CACHE (and ?v= in index.html/cloud.js) on every release.
+const CACHE = 'habits-v11';
+const FILES = ['./', 'index.html', 'cloud.js?v=11', 'firebase-config.js?v=11', 'query.js?v=11', 'vendor/sql-wasm.js', 'vendor/sql-wasm.wasm', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
@@ -15,10 +15,13 @@ self.addEventListener('activate', e => {
 });
 
 // Network first so updates show up, falling back to the cache when offline.
+// The app's own files skip the browser's HTTP cache (GitHub Pages caches for 10 minutes),
+// so every file comes from the same release instead of a mix of old and new.
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const ownFile = new URL(e.request.url).origin === location.origin;
   e.respondWith(
-    fetch(e.request)
+    (ownFile ? fetch(e.request.url, { cache: 'no-cache' }) : fetch(e.request))
       .then(res => {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));

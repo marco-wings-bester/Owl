@@ -2,7 +2,7 @@
 // Each user's data is one Firestore document:
 //   users/{uid} = { days: { "2026-10-11": { sugar: "tick" } }, habits: [{ id: "sugar", name: "No Sugar" }] }
 // The phone's local copy is still kept, so the app works offline and without signing in.
-import { firebaseConfig } from './firebase-config.js';
+import { firebaseConfig } from './firebase-config.js?v=11';
 
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
 
@@ -123,10 +123,11 @@ export async function startCloud({ getData, setData, getHabits, setHabits }) {
         merged[day] = { ...merged[day], ...habits };
       }
       // Habit list: the cloud's wins if it has one (e.g. set up on another phone), otherwise upload this phone's.
+      // (getHabits/setHabits are optional so an older cached page can't break syncing.)
       const cloudHabits = snap.data()?.habits;
-      const habits = cloudHabits && !habitsPending ? cloudHabits : getHabits();
-      await fs.setDoc(ref, { days: merged, habits });
-      setHabits(habits);
+      const habits = cloudHabits && !habitsPending ? cloudHabits : getHabits?.() || cloudHabits;
+      await fs.setDoc(ref, habits ? { days: merged, habits } : { days: merged });
+      if (habits) setHabits?.(habits);
       docRef = ref;
       for (const [cell, value] of pending) upload(...cell.split('|'), value).catch(reportError);
       pending.clear();
@@ -136,7 +137,7 @@ export async function startCloud({ getData, setData, getHabits, setHabits }) {
       // From now on the cloud copy is the source of truth; changes from other devices show up live.
       unsubscribe = fs.onSnapshot(ref, s => {
         setData(s.data()?.days || {});
-        if (s.data()?.habits) setHabits(s.data().habits);
+        if (s.data()?.habits) setHabits?.(s.data().habits);
       }, reportError);
     } catch (err) {
       reportError(err);
