@@ -2,7 +2,7 @@
 // Each user's data is one Firestore document:
 //   users/{uid} = { days: { "2026-10-11": { sugar: "tick" } }, habits: [{ id: "sugar", name: "No Sugar" }] }
 // The phone's local copy is still kept, so the app works offline and without signing in.
-import { firebaseConfig } from './firebase-config.js?v=12';
+import { firebaseConfig } from './firebase-config.js?v=13';
 
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
 
@@ -50,7 +50,8 @@ export async function startCloud({ getData, setData, getHabits, setHabits }) {
   let habitsPending = false;
   function upload(day, habitId, value) {
     const path = new fs.FieldPath('days', day, habitId);
-    return fs.updateDoc(docRef, path, value || fs.deleteField());
+    const empty = value === '' || value == null; // note: a sleep score of 0 is a real value
+    return fs.updateDoc(docRef, path, empty ? fs.deleteField() : value);
   }
 
   // Google One Tap: a small "Continue as …" sheet instead of a full-page sign-in.

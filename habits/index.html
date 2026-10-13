@@ -90,6 +90,33 @@
   }
   #account-btn.secondary { background: var(--line); color: var(--text); }
 
+  /* Sleep row */
+  tr.sleep-row td { border-top: 2px solid var(--line); }
+  td.cell button.score { font-size: .95rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .score.good { color: #2e9d6e; }
+  .score.ok { color: #d39b1c; }
+  .score.bad { color: #d9534f; }
+  #sleep-dialog {
+    border: 0; border-radius: 18px 18px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+    width: 100%; max-width: 560px; margin: auto auto 0; background: var(--card); color: var(--text);
+  }
+  #sleep-dialog::backdrop { background: rgba(0,0,0,.45); }
+  #sleep-dialog h3 { margin: 0 0 4px; font-size: 1.05rem; }
+  #sleep-dialog p { margin: 0 0 16px; color: var(--muted); font-size: .85rem; }
+  .sleep-value { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 12px; }
+  .sleep-value button { width: 44px; height: 44px; border: 0; border-radius: 12px; background: var(--line); color: var(--text); font-size: 1.3rem; }
+  #sleep-input {
+    width: 96px; text-align: center; font-size: 2.2rem; font-weight: 700; border: 0; background: transparent; color: var(--text);
+    font-variant-numeric: tabular-nums; user-select: text;
+  }
+  #sleep-range { width: 100%; accent-color: var(--accent); margin: 4px 0 18px; }
+  .sleep-actions { display: flex; gap: 8px; }
+  .sleep-actions button { flex: 1; border: 0; border-radius: 12px; padding: 13px; font-size: .95rem; font-weight: 600; }
+  #sleep-clear { background: var(--line); color: var(--text); }
+  #sleep-save { background: var(--accent); color: #fff; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: .95rem; }
+  .toggle-row input { width: 22px; height: 22px; accent-color: var(--accent); }
+
   /* Habit editor */
   .habit-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
   .habit-row input, #new-habit {
@@ -200,6 +227,7 @@
         <input id="new-habit" placeholder="Add a habit, e.g. Read 10 pages" maxlength="40" autocomplete="off">
         <button id="add-habit" type="submit">Add</button>
       </form>
+      <label class="toggle-row">😴 Sleep score row (0–100) <input type="checkbox" id="show-sleep"></label>
     </div>
     <p class="hint" style="text-align:left">Rename by editing a name. Removing a habit hides it but keeps its history.</p>
 
@@ -232,10 +260,27 @@
     </div>
   </div>
 
+  <dialog id="sleep-dialog">
+    <form method="dialog" novalidate>
+      <h3>😴 Sleep score</h3>
+      <p id="sleep-date"></p>
+      <div class="sleep-value">
+        <button type="button" id="sleep-minus" aria-label="Decrease">−</button>
+        <input id="sleep-input" type="number" inputmode="numeric" min="0" max="100" aria-label="Sleep score">
+        <button type="button" id="sleep-plus" aria-label="Increase">+</button>
+      </div>
+      <input id="sleep-range" type="range" min="0" max="100" aria-label="Sleep score slider">
+      <div class="sleep-actions">
+        <button type="button" id="sleep-clear">Clear</button>
+        <button type="submit" id="sleep-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=12';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=12';
+  import { startCloud } from './cloud.js?v=13';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=13';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   const DEFAULT_HABITS = [
@@ -273,6 +318,13 @@
     try { localStorage.setItem(HABITS_KEY, JSON.stringify(habits)); } catch {}
   }
   const activeHabits = () => habits.filter(h => !h.archived);
+
+  // Sleep scores live alongside the ticks under a reserved key, so they sync the same way:
+  // data["2026-10-13"]._sleep = 82  (last night's sleep, logged on the morning's date)
+  const SLEEP = '_sleep';
+  const SHOW_SLEEP_KEY = 'habit-tracker-show-sleep';
+  const showSleep = () => { try { return localStorage.getItem(SHOW_SLEEP_KEY) !== '0'; } catch { return true; } };
+  const scoreClass = n => n >= 80 ? 'good' : n >= 60 ? 'ok' : 'bad';
 
   function dateKey(d) {
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -350,7 +402,72 @@
       }
       body.appendChild(tr);
     }
+    if (showSleep()) body.appendChild(sleepRow(days, todayKey));
   }
+
+  function sleepRow(days, todayKey) {
+    const tr = document.createElement('tr');
+    tr.className = 'sleep-row';
+    const recent = Array.from({ length: 7 }, (_, i) => data[dateKey(addDays(startOfToday(), -i))]?.[SLEEP])
+      .filter(n => typeof n === 'number');
+    const avg = recent.length ? Math.round(recent.reduce((a, b) => a + b, 0) / recent.length) : null;
+    tr.innerHTML = `<td class="habit">😴 Sleep<span class="streak">${avg === null ? 'Tap to log' : `7-day avg ${avg}`}</span></td>`;
+    for (const d of days) {
+      const key = dateKey(d);
+      const score = data[key]?.[SLEEP];
+      const td = document.createElement('td');
+      td.className = 'cell' + (key === todayKey ? ' is-today' : '');
+      const btn = document.createElement('button');
+      btn.disabled = key > todayKey;
+      if (typeof score === 'number') {
+        btn.textContent = score;
+        btn.className = `score ${scoreClass(score)}`;
+      } else {
+        btn.innerHTML = '<span class="dot"></span>';
+      }
+      btn.setAttribute('aria-label', `Sleep score, night before ${d.toDateString()}: ${score ?? 'not logged'}`);
+      btn.addEventListener('click', () => openSleep(key, d));
+      td.appendChild(btn);
+      tr.appendChild(td);
+    }
+    return tr;
+  }
+
+  function setCell(key, field, value) {
+    data[key] = data[key] || {};
+    if (value === '' || value == null) delete data[key][field];
+    else data[key][field] = value;
+    if (!Object.keys(data[key]).length) delete data[key];
+    save();
+    render();
+    try { cloud?.saveCell(key, field, value ?? ''); } catch (err) { console.error(err); }
+  }
+
+  // ---- Sleep score dialog ----
+  const sleepDialog = document.getElementById('sleep-dialog');
+  const sleepInput = document.getElementById('sleep-input');
+  const sleepRange = document.getElementById('sleep-range');
+  let sleepKey = null;
+  const clampScore = v => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+  function setSleepValue(v) { sleepInput.value = sleepRange.value = clampScore(v); }
+
+  function openSleep(key, date) {
+    sleepKey = key;
+    const night = addDays(date, -1).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    const morning = date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    document.getElementById('sleep-date').textContent = `Night of ${night} → ${morning}`;
+    setSleepValue(data[key]?.[SLEEP] ?? 75);
+    sleepDialog.showModal();
+  }
+  sleepRange.addEventListener('input', () => { sleepInput.value = sleepRange.value; });
+  sleepInput.addEventListener('input', () => { if (sleepInput.value !== '') sleepRange.value = clampScore(sleepInput.value); });
+  sleepInput.addEventListener('focus', () => sleepInput.select());
+  document.getElementById('sleep-minus').addEventListener('click', () => setSleepValue(Number(sleepInput.value) - 1));
+  document.getElementById('sleep-plus').addEventListener('click', () => setSleepValue(Number(sleepInput.value) + 1));
+  document.getElementById('sleep-clear').addEventListener('click', () => { sleepDialog.close(); setCell(sleepKey, SLEEP, ''); });
+  sleepDialog.addEventListener('submit', () => setCell(sleepKey, SLEEP, clampScore(sleepInput.value)));
+  // Tap outside the sheet to cancel.
+  sleepDialog.addEventListener('click', e => { if (e.target === sleepDialog) sleepDialog.close(); });
 
   function cycle(key, habitId) {
     const current = data[key]?.[habitId] || '';
@@ -575,6 +692,13 @@
     } catch {
       note.textContent = `Share this link: ${url}`;
     }
+  });
+
+  const sleepToggle = document.getElementById('show-sleep');
+  sleepToggle.checked = showSleep();
+  sleepToggle.addEventListener('change', () => {
+    try { localStorage.setItem(SHOW_SLEEP_KEY, sleepToggle.checked ? '1' : '0'); } catch {}
+    render();
   });
 
   document.getElementById('open-settings').addEventListener('click', () => {
