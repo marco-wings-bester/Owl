@@ -283,8 +283,8 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=14';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=14';
+  import { startCloud } from './cloud.js?v=15';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=15';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
@@ -296,9 +296,9 @@
   };
   const typeOf = h => TYPES[h.type] ? h.type : 'check';
   const isTapType = h => !!TYPES[typeOf(h)].states;
-  // Last night's sleep is stored under a reserved id, logged on the morning's date.
+  // The sleep score (for last night) is stored under a reserved id, logged on the morning's date.
   const SLEEP = '_sleep';
-  const SLEEP_HABIT = { id: SLEEP, name: "Last night's sleep", type: 'score' };
+  const SLEEP_HABIT = { id: SLEEP, name: 'Sleep score', type: 'score' };
   const DEFAULT_HABITS = [
     { id: 'caffeine', name: 'No Caffeine' },
     { id: 'sugar', name: 'No Sugar' },
@@ -332,7 +332,9 @@
   }
   // Lists made before sleep became a habit get it added (hidden if the old sleep row was switched off).
   function withSleep(list) {
-    if (list.some(h => h.id === SLEEP)) return list;
+    const sleep = list.find(h => h.id === SLEEP);
+    if (sleep?.name === "Last night's sleep") sleep.name = SLEEP_HABIT.name; // earlier default name
+    if (sleep) return list;
     let hidden = false;
     try { hidden = localStorage.getItem('habit-tracker-show-sleep') === '0'; } catch {}
     return [...list, { ...SLEEP_HABIT, ...(hidden ? { archived: true } : {}) }];
@@ -755,8 +757,8 @@
     getHabits: () => habits,
     setHabits: newHabits => {
       const list = withSleep(structuredClone(newHabits));
-      // A list from an older version gets "Last night's sleep" added; send that back once sync is ready.
-      if (list.length !== newHabits.length) setTimeout(() => cloud?.saveHabits(habits));
+      // A list from an older version gets the sleep score added/renamed; send that back once sync is ready.
+      if (JSON.stringify(list) !== JSON.stringify(newHabits)) setTimeout(() => cloud?.saveHabits(habits));
       if (JSON.stringify(list) === JSON.stringify(habits)) return;
       habits = list;
       saveHabits();

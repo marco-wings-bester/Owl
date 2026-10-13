@@ -26,7 +26,7 @@ export const SCHEMA = `habit_list (
   active    INTEGER  -- 1 = tracked, 0 = removed
 )
 
-sleep (    -- shortcut for "Last night's sleep"
+sleep (    -- shortcut for the Sleep score habit
   date      TEXT     -- morning date; the score is for the night before
   weekday   TEXT
   score     INTEGER  -- 0–100
@@ -71,7 +71,7 @@ export async function runQuery(sql, data, habits) {
       const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()];
       for (const [habitId, entry] of Object.entries(entries)) {
         const h = byId[habitId];
-        const name = h?.name || (habitId === '_sleep' ? "Last night's sleep" : habitId);
+        const name = h?.name || (habitId === '_sleep' ? 'Sleep score' : habitId);
         if (typeof entry === 'number') {
           insert.run([date, weekday, name, habitId, h?.type || 'score', null, null, null, entry]);
         } else {
