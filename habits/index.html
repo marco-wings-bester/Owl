@@ -90,37 +90,40 @@
   }
   #account-btn.secondary { background: var(--line); color: var(--text); }
 
-  /* Sleep row */
-  tr.sleep-row td { border-top: 2px solid var(--line); }
+  /* Score / number cells */
   td.cell button.score { font-size: .95rem; font-weight: 700; font-variant-numeric: tabular-nums; }
   .score.good { color: #2e9d6e; }
   .score.ok { color: #d39b1c; }
   .score.bad { color: #d9534f; }
-  #sleep-dialog {
+  #value-dialog {
     border: 0; border-radius: 18px 18px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
     width: 100%; max-width: 560px; margin: auto auto 0; background: var(--card); color: var(--text);
   }
-  #sleep-dialog::backdrop { background: rgba(0,0,0,.45); }
-  #sleep-dialog h3 { margin: 0 0 4px; font-size: 1.05rem; }
-  #sleep-dialog p { margin: 0 0 16px; color: var(--muted); font-size: .85rem; }
-  .sleep-value { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 12px; }
-  .sleep-value button { width: 44px; height: 44px; border: 0; border-radius: 12px; background: var(--line); color: var(--text); font-size: 1.3rem; }
-  #sleep-input {
+  #value-dialog::backdrop { background: rgba(0,0,0,.45); }
+  #value-dialog h3 { margin: 0 0 4px; font-size: 1.05rem; }
+  #value-dialog p { margin: 0 0 16px; color: var(--muted); font-size: .85rem; }
+  .value-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 12px; }
+  .value-row button { width: 44px; height: 44px; border: 0; border-radius: 12px; background: var(--line); color: var(--text); font-size: 1.3rem; }
+  #value-input {
     width: 96px; text-align: center; font-size: 2.2rem; font-weight: 700; border: 0; background: transparent; color: var(--text);
     font-variant-numeric: tabular-nums; user-select: text;
   }
-  #sleep-range { width: 100%; accent-color: var(--accent); margin: 4px 0 18px; }
-  .sleep-actions { display: flex; gap: 8px; }
-  .sleep-actions button { flex: 1; border: 0; border-radius: 12px; padding: 13px; font-size: .95rem; font-weight: 600; }
-  #sleep-clear { background: var(--line); color: var(--text); }
-  #sleep-save { background: var(--accent); color: #fff; }
-  .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: .95rem; }
-  .toggle-row input { width: 22px; height: 22px; accent-color: var(--accent); }
+  #value-range { width: 100%; accent-color: var(--accent); margin: 4px 0 18px; }
+  .value-actions { display: flex; gap: 8px; }
+  .value-actions button { flex: 1; border: 0; border-radius: 12px; padding: 13px; font-size: .95rem; font-weight: 600; }
+  #value-clear { background: var(--line); color: var(--text); }
+  #value-save { background: var(--accent); color: #fff; }
+  td.cell button.number { font-size: .85rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 
   /* Habit editor */
-  .habit-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+  .habit-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .habit-row > input { flex: 1 1 100%; } /* name on its own line, type + buttons below */
+  .habit-row select, #new-type {
+    flex: 1; min-width: 0; height: 40px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--text); padding: 0 8px; font-size: .9rem;
+  }
   .habit-row input, #new-habit {
-    flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px;
+    min-width: 0; border: 1px solid var(--line); border-radius: 10px;
     background: var(--bg); color: var(--text); padding: 10px; font-size: .95rem; user-select: text;
   }
   .habit-row button, #add-habit {
@@ -129,7 +132,8 @@
   }
   .habit-row button:disabled { opacity: .3; }
   #add-habit { background: var(--accent); color: #fff; font-weight: 600; padding: 0 14px; font-size: .9rem; }
-  .add-row { display: flex; gap: 6px; margin-top: 12px; }
+  .add-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .add-row #new-habit { flex: 1 1 100%; }
   .empty { padding: 28px 16px; text-align: center; color: var(--muted); font-size: .9rem; }
 
   #share {
@@ -225,11 +229,11 @@
       <div id="habit-list"></div>
       <form class="add-row" id="add-form">
         <input id="new-habit" placeholder="Add a habit, e.g. Read 10 pages" maxlength="40" autocomplete="off">
+        <select id="new-type" aria-label="Input type"></select>
         <button id="add-habit" type="submit">Add</button>
       </form>
-      <label class="toggle-row">😴 Sleep score row (0–100) <input type="checkbox" id="show-sleep"></label>
     </div>
-    <p class="hint" style="text-align:left">Rename by editing a name. Removing a habit hides it but keeps its history.</p>
+    <p class="hint" style="text-align:left">Each habit has an input type: ✅ 😐 ❌, ✅ ❌, a score from 0–100, or any number (e.g. glasses of water). Removing a habit hides it but keeps its history.</p>
 
     <h2>Account</h2>
     <div id="account">
@@ -260,38 +264,49 @@
     </div>
   </div>
 
-  <dialog id="sleep-dialog">
+  <dialog id="value-dialog">
     <form method="dialog" novalidate>
-      <h3>😴 Sleep score</h3>
-      <p id="sleep-date"></p>
-      <div class="sleep-value">
-        <button type="button" id="sleep-minus" aria-label="Decrease">−</button>
-        <input id="sleep-input" type="number" inputmode="numeric" min="0" max="100" aria-label="Sleep score">
-        <button type="button" id="sleep-plus" aria-label="Increase">+</button>
+      <h3 id="value-title"></h3>
+      <p id="value-date"></p>
+      <div class="value-row">
+        <button type="button" id="value-minus" aria-label="Decrease">−</button>
+        <input id="value-input" type="number" min="0" aria-label="Value">
+        <button type="button" id="value-plus" aria-label="Increase">+</button>
       </div>
-      <input id="sleep-range" type="range" min="0" max="100" aria-label="Sleep score slider">
-      <div class="sleep-actions">
-        <button type="button" id="sleep-clear">Clear</button>
-        <button type="submit" id="sleep-save">Save</button>
+      <input id="value-range" type="range" min="0" max="100" aria-label="Score slider">
+      <div class="value-actions">
+        <button type="button" id="value-clear">Clear</button>
+        <button type="submit" id="value-save">Save</button>
       </div>
     </form>
   </dialog>
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=13';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=13';
+  import { startCloud } from './cloud.js?v=14';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=14';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
+  // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
+  const TYPES = {
+    check:  { label: '✅ 😐 ❌  Tap', states: ['', 'tick', 'avg', 'cross'] },
+    yesno:  { label: '✅ ❌  Yes / no', states: ['', 'tick', 'cross'] },
+    score:  { label: '0–100  Score' },
+    number: { label: '123  Number' },
+  };
+  const typeOf = h => TYPES[h.type] ? h.type : 'check';
+  const isTapType = h => !!TYPES[typeOf(h)].states;
+  // Last night's sleep is stored under a reserved id, logged on the morning's date.
+  const SLEEP = '_sleep';
+  const SLEEP_HABIT = { id: SLEEP, name: "Last night's sleep", type: 'score' };
   const DEFAULT_HABITS = [
     { id: 'caffeine', name: 'No Caffeine' },
     { id: 'sugar', name: 'No Sugar' },
     { id: 'exercise', name: 'Exercise' },
     { id: 'nails', name: 'No Nail Biting' },
+    SLEEP_HABIT,
   ];
   const HABITS_KEY = 'habit-tracker-habits';
-  // Tapping cycles through these: blank → ✅ → 😐 → ❌ → blank
-  const STATES = ['', 'tick', 'avg', 'cross'];
   const EMOJI = { tick: '✅', avg: '😐', cross: '❌' };
   const LABEL = { '': 'blank', tick: 'done', avg: 'so-so', cross: 'missed' };
   const STORAGE_KEY = 'habit-tracker-v1';
@@ -311,20 +326,29 @@
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
   }
   function loadHabits() {
-    try { return JSON.parse(localStorage.getItem(HABITS_KEY)) || DEFAULT_HABITS; }
-    catch { return DEFAULT_HABITS; }
+    let list;
+    try { list = JSON.parse(localStorage.getItem(HABITS_KEY)) || DEFAULT_HABITS; } catch { list = DEFAULT_HABITS; }
+    return withSleep(structuredClone(list));
+  }
+  // Lists made before sleep became a habit get it added (hidden if the old sleep row was switched off).
+  function withSleep(list) {
+    if (list.some(h => h.id === SLEEP)) return list;
+    let hidden = false;
+    try { hidden = localStorage.getItem('habit-tracker-show-sleep') === '0'; } catch {}
+    return [...list, { ...SLEEP_HABIT, ...(hidden ? { archived: true } : {}) }];
   }
   function saveHabits() {
     try { localStorage.setItem(HABITS_KEY, JSON.stringify(habits)); } catch {}
   }
   const activeHabits = () => habits.filter(h => !h.archived);
 
-  // Sleep scores live alongside the ticks under a reserved key, so they sync the same way:
-  // data["2026-10-13"]._sleep = 82  (last night's sleep, logged on the morning's date)
-  const SLEEP = '_sleep';
-  const SHOW_SLEEP_KEY = 'habit-tracker-show-sleep';
-  const showSleep = () => { try { return localStorage.getItem(SHOW_SLEEP_KEY) !== '0'; } catch { return true; } };
   const scoreClass = n => n >= 80 ? 'good' : n >= 60 ? 'ok' : 'bad';
+  const formatNumber = n => n >= 10000 ? Math.round(n / 1000) + 'k' : n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(Math.round(n * 10) / 10);
+  function recentAverage(habitId) {
+    const values = Array.from({ length: 7 }, (_, i) => data[dateKey(addDays(startOfToday(), -i))]?.[habitId])
+      .filter(n => typeof n === 'number');
+    return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+  }
 
   function dateKey(d) {
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -381,56 +405,46 @@
     }
     for (const habit of activeHabits()) {
       const tr = document.createElement('tr');
-      const s = streak(habit.id);
+      const type = typeOf(habit);
       const nameCell = document.createElement('td');
       nameCell.className = 'habit';
       nameCell.textContent = habit.name;
-      nameCell.insertAdjacentHTML('beforeend', `<span class="streak">${s ? `🔥 ${s} day${s === 1 ? '' : 's'}` : 'No streak'}</span>`);
+      let sub;
+      if (isTapType(habit)) {
+        const s = streak(habit.id);
+        sub = s ? `🔥 ${s} day${s === 1 ? '' : 's'}` : 'No streak';
+      } else {
+        const avg = recentAverage(habit.id);
+        sub = avg === null ? 'Tap to log' : `7-day avg ${type === 'score' ? Math.round(avg) : formatNumber(avg)}`;
+      }
+      nameCell.insertAdjacentHTML('beforeend', `<span class="streak">${sub}</span>`);
       tr.appendChild(nameCell);
       for (const d of days) {
         const key = dateKey(d);
-        const value = data[key]?.[habit.id] || '';
+        const value = data[key]?.[habit.id];
         const td = document.createElement('td');
         td.className = 'cell' + (key === todayKey ? ' is-today' : '');
         const btn = document.createElement('button');
         btn.disabled = key > todayKey;
-        btn.innerHTML = value ? EMOJI[value] : '<span class="dot"></span>';
-        btn.setAttribute('aria-label', `${habit.name}, ${d.toDateString()}: ${LABEL[value]}`);
-        btn.addEventListener('click', () => cycle(key, habit.id));
+        if (isTapType(habit)) {
+          btn.innerHTML = EMOJI[value] || '<span class="dot"></span>';
+          btn.setAttribute('aria-label', `${habit.name}, ${d.toDateString()}: ${LABEL[value] || 'blank'}`);
+          btn.addEventListener('click', () => cycle(key, habit));
+        } else {
+          if (typeof value === 'number') {
+            btn.textContent = type === 'score' ? value : formatNumber(value);
+            btn.className = type === 'score' ? `score ${scoreClass(value)}` : 'number';
+          } else {
+            btn.innerHTML = '<span class="dot"></span>';
+          }
+          btn.setAttribute('aria-label', `${habit.name}, ${d.toDateString()}: ${value ?? 'not logged'}`);
+          btn.addEventListener('click', () => openValue(key, d, habit));
+        }
         td.appendChild(btn);
         tr.appendChild(td);
       }
       body.appendChild(tr);
     }
-    if (showSleep()) body.appendChild(sleepRow(days, todayKey));
-  }
-
-  function sleepRow(days, todayKey) {
-    const tr = document.createElement('tr');
-    tr.className = 'sleep-row';
-    const recent = Array.from({ length: 7 }, (_, i) => data[dateKey(addDays(startOfToday(), -i))]?.[SLEEP])
-      .filter(n => typeof n === 'number');
-    const avg = recent.length ? Math.round(recent.reduce((a, b) => a + b, 0) / recent.length) : null;
-    tr.innerHTML = `<td class="habit">😴 Sleep<span class="streak">${avg === null ? 'Tap to log' : `7-day avg ${avg}`}</span></td>`;
-    for (const d of days) {
-      const key = dateKey(d);
-      const score = data[key]?.[SLEEP];
-      const td = document.createElement('td');
-      td.className = 'cell' + (key === todayKey ? ' is-today' : '');
-      const btn = document.createElement('button');
-      btn.disabled = key > todayKey;
-      if (typeof score === 'number') {
-        btn.textContent = score;
-        btn.className = `score ${scoreClass(score)}`;
-      } else {
-        btn.innerHTML = '<span class="dot"></span>';
-      }
-      btn.setAttribute('aria-label', `Sleep score, night before ${d.toDateString()}: ${score ?? 'not logged'}`);
-      btn.addEventListener('click', () => openSleep(key, d));
-      td.appendChild(btn);
-      tr.appendChild(td);
-    }
-    return tr;
   }
 
   function setCell(key, field, value) {
@@ -443,43 +457,57 @@
     try { cloud?.saveCell(key, field, value ?? ''); } catch (err) { console.error(err); }
   }
 
-  // ---- Sleep score dialog ----
-  const sleepDialog = document.getElementById('sleep-dialog');
-  const sleepInput = document.getElementById('sleep-input');
-  const sleepRange = document.getElementById('sleep-range');
-  let sleepKey = null;
-  const clampScore = v => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
-  function setSleepValue(v) { sleepInput.value = sleepRange.value = clampScore(v); }
-
-  function openSleep(key, date) {
-    sleepKey = key;
-    const night = addDays(date, -1).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-    const morning = date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-    document.getElementById('sleep-date').textContent = `Night of ${night} → ${morning}`;
-    setSleepValue(data[key]?.[SLEEP] ?? 75);
-    sleepDialog.showModal();
+  // ---- Score / number input sheet ----
+  const valueDialog = document.getElementById('value-dialog');
+  const valueInput = document.getElementById('value-input');
+  const valueRange = document.getElementById('value-range');
+  let editing = null; // { key, habit }
+  const shortDate = d => d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  function clean(v) {
+    const n = Math.max(0, Number(v) || 0);
+    return typeOf(editing.habit) === 'score' ? Math.min(100, Math.round(n)) : Math.round(n * 100) / 100;
   }
-  sleepRange.addEventListener('input', () => { sleepInput.value = sleepRange.value; });
-  sleepInput.addEventListener('input', () => { if (sleepInput.value !== '') sleepRange.value = clampScore(sleepInput.value); });
-  sleepInput.addEventListener('focus', () => sleepInput.select());
-  document.getElementById('sleep-minus').addEventListener('click', () => setSleepValue(Number(sleepInput.value) - 1));
-  document.getElementById('sleep-plus').addEventListener('click', () => setSleepValue(Number(sleepInput.value) + 1));
-  document.getElementById('sleep-clear').addEventListener('click', () => { sleepDialog.close(); setCell(sleepKey, SLEEP, ''); });
-  sleepDialog.addEventListener('submit', () => setCell(sleepKey, SLEEP, clampScore(sleepInput.value)));
-  // Tap outside the sheet to cancel.
-  sleepDialog.addEventListener('click', e => { if (e.target === sleepDialog) sleepDialog.close(); });
+  function setValue(v) { valueInput.value = clean(v); valueRange.value = valueInput.value; }
+  // Start from the most recent value you logged for this habit, so small changes are quick.
+  function lastValue(habitId, before) {
+    for (let i = 1; i <= 60; i++) {
+      const v = data[dateKey(addDays(before, -i))]?.[habitId];
+      if (typeof v === 'number') return v;
+    }
+    return null;
+  }
 
-  function cycle(key, habitId) {
-    const current = data[key]?.[habitId] || '';
-    const next = STATES[(STATES.indexOf(current) + 1) % STATES.length];
-    data[key] = data[key] || {};
-    if (next) data[key][habitId] = next;
-    else delete data[key][habitId];
-    if (!Object.keys(data[key]).length) delete data[key];
-    save();
-    render();
+  function openValue(key, date, habit) {
+    editing = { key, habit };
+    const score = typeOf(habit) === 'score';
+    document.getElementById('value-title').textContent = habit.name;
+    document.getElementById('value-date').textContent = habit.id === SLEEP
+      ? `Night of ${shortDate(addDays(date, -1))} → ${shortDate(date)}`
+      : shortDate(date);
+    valueRange.hidden = !score;
+    valueInput.max = score ? 100 : '';
+    valueInput.step = score ? 1 : 'any';
+    valueInput.inputMode = score ? 'numeric' : 'decimal';
+    const current = data[key]?.[habit.id];
+    setValue(typeof current === 'number' ? current : lastValue(habit.id, date) ?? (score ? 75 : 0));
+    valueDialog.showModal();
+  }
+  valueRange.addEventListener('input', () => { valueInput.value = valueRange.value; });
+  valueInput.addEventListener('input', () => { if (valueInput.value !== '') valueRange.value = clean(valueInput.value); });
+  valueInput.addEventListener('focus', () => valueInput.select());
+  document.getElementById('value-minus').addEventListener('click', () => setValue(Number(valueInput.value) - 1));
+  document.getElementById('value-plus').addEventListener('click', () => setValue(Number(valueInput.value) + 1));
+  document.getElementById('value-clear').addEventListener('click', () => { valueDialog.close(); setCell(editing.key, editing.habit.id, ''); });
+  valueDialog.addEventListener('submit', () => setCell(editing.key, editing.habit.id, clean(valueInput.value)));
+  // Tap outside the sheet to cancel.
+  valueDialog.addEventListener('click', e => { if (e.target === valueDialog) valueDialog.close(); });
+
+  function cycle(key, habit) {
+    const states = TYPES[typeOf(habit)].states;
+    const current = data[key]?.[habit.id] || '';
+    const next = states[(states.indexOf(current) + 1) % states.length]; // unknown values restart the cycle
     if (navigator.vibrate) navigator.vibrate(10);
-    try { cloud?.saveCell(key, habitId, next); } catch (err) { console.error(err); }
+    setCell(key, habit.id, next);
   }
 
   function changeWeek(delta) {
@@ -573,6 +601,16 @@
     habitsChanged();
   }
 
+  function typeSelect(selected) {
+    const select = document.createElement('select');
+    for (const [value, { label }] of Object.entries(TYPES)) {
+      select.add(new Option(label, value, false, value === selected));
+    }
+    select.setAttribute('aria-label', 'Input type');
+    return select;
+  }
+  document.getElementById('new-type').replaceWith(Object.assign(typeSelect('check'), { id: 'new-type' }));
+
   function renderHabitEditor() {
     habitList.innerHTML = '';
     const active = activeHabits();
@@ -602,7 +640,12 @@
         habit.archived = true;
         habitsChanged();
       });
-      row.append(input, up, down, remove);
+      const type = typeSelect(typeOf(habit));
+      type.addEventListener('change', () => {
+        habit.type = type.value;
+        habitsChanged();
+      });
+      row.append(input, type, up, down, remove);
       habitList.appendChild(row);
     });
   }
@@ -619,7 +662,8 @@
       habits.splice(habits.indexOf(old), 1);
       habits.push(old);
     } else {
-      habits.push({ id: 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name });
+      const type = document.getElementById('new-type').value;
+      habits.push({ id: 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, type });
     }
     field.value = '';
     habitsChanged();
@@ -694,13 +738,6 @@
     }
   });
 
-  const sleepToggle = document.getElementById('show-sleep');
-  sleepToggle.checked = showSleep();
-  sleepToggle.addEventListener('change', () => {
-    try { localStorage.setItem(SHOW_SLEEP_KEY, sleepToggle.checked ? '1' : '0'); } catch {}
-    render();
-  });
-
   document.getElementById('open-settings').addEventListener('click', () => {
     renderHabitEditor();
     document.body.classList.add('settings-open');
@@ -717,8 +754,11 @@
     setData: newData => { data = newData; save(); render(); },
     getHabits: () => habits,
     setHabits: newHabits => {
-      if (JSON.stringify(newHabits) === JSON.stringify(habits)) return;
-      habits = newHabits;
+      const list = withSleep(structuredClone(newHabits));
+      // A list from an older version gets "Last night's sleep" added; send that back once sync is ready.
+      if (list.length !== newHabits.length) setTimeout(() => cloud?.saveHabits(habits));
+      if (JSON.stringify(list) === JSON.stringify(habits)) return;
+      habits = list;
       saveHabits();
       render();
       // Don't redraw the editor while you're typing in it.
