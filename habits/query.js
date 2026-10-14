@@ -22,7 +22,7 @@ const SCORE = { tick: 1, avg: 0.5, cross: 0 };
 export const SCHEMA = `habit_list (
   habit_id  TEXT
   habit     TEXT
-  type      TEXT     -- 'check', 'yesno', 'score' or 'number'
+  type      TEXT     -- 'check', 'yesno', 'scale' (1–10), 'score' (0–100) or 'number'
   active    INTEGER  -- 1 = tracked, 0 = removed
 )
 
@@ -37,11 +37,11 @@ habits (
   weekday   TEXT  -- 'Monday' … 'Sunday'
   habit     TEXT  -- 'No Sugar', 'Exercise', …
   habit_id  TEXT  -- 'sugar', 'exercise', …
-  type      TEXT  -- 'check', 'yesno', 'score' or 'number'
+  type      TEXT  -- 'check', 'yesno', 'scale', 'score' or 'number'
   status    TEXT  -- 'tick', 'avg' or 'cross' (tap types)
   emoji     TEXT  -- ✅ 😐 ❌ (tap types)
   score     REAL  -- 1, 0.5 or 0 (tap types)
-  value     REAL  -- the number for score/number types; 1, 0.5 or 0 otherwise
+  value     REAL  -- the number for scale/score/number types; 1, 0.5 or 0 otherwise
 )`;
 
 export const EXAMPLES = [
