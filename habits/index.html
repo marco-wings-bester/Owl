@@ -124,6 +124,10 @@
   /* Habit editor */
   .habit-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
   .habit-row > input { flex: 1 1 100%; } /* name on its own line, type + buttons below */
+  .emoji-row { flex: 1 1 100%; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .8rem; }
+  .habit-row .emoji-row input {
+    flex: 0 0 48px; width: 48px; height: 44px; padding: 0; text-align: center; font-size: 1.35rem;
+  }
   .habit-row select, #new-type {
     flex: 1; min-width: 0; height: 40px; border: 1px solid var(--line); border-radius: 10px;
     background: var(--bg); color: var(--text); padding: 0 8px; font-size: .9rem;
@@ -239,7 +243,7 @@
         <button id="add-habit" type="submit">Add</button>
       </form>
     </div>
-    <p class="hint" style="text-align:left">Each habit has an input type: ✅ 😐 ❌, ✅ ❌, a 1–10 scale (e.g. headache), a 0–100 score, or any number (e.g. glasses of water). Use ↑ ↓ to set the order. Removing a habit hides it but keeps its history.</p>
+    <p class="hint" style="text-align:left">Each habit has an input type: ✅ 😐 ❌, ✅ ❌, a 1–10 scale (e.g. headache), a 0–100 score, or any number (e.g. glasses of water). Tap an emoji box to pick your own emoji (clear it to go back to the default). Use ↑ ↓ to set the order. Removing a habit hides it but keeps its history.</p>
 
     <h2>Account</h2>
     <div id="account">
@@ -290,8 +294,8 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=17';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=17';
+  import { startCloud } from './cloud.js?v=18';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=18';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
@@ -303,6 +307,8 @@
     number: { label: '123  Number' },
   };
   const typeOf = h => TYPES[h.type] ? h.type : 'check';
+  // Habits can override the emoji for each state, e.g. { tick: '🏊‍♂️' }.
+  const emojiFor = (habit, state) => habit.emoji?.[state] || EMOJI[state] || '';
   const isTapType = h => !!TYPES[typeOf(h)].states;
   // The sleep score (for last night) is stored under a reserved id, logged on the morning's date.
   const SLEEP = '_sleep';
@@ -312,6 +318,7 @@
     { id: 'headache', name: 'Headache', type: 'scale' },
     { id: 'caffeine', name: 'No Caffeine' },
     { id: 'sugar', name: 'No Sugar' },
+    { id: 'swim', name: 'Swim', type: 'yesno', emoji: { tick: '🏊‍♂️' } },
     { id: 'exercise', name: 'Exercise' },
     { id: 'nails', name: 'No Nail Biting' },
     { id: 'reading', name: 'Read 10 pages' },
@@ -440,7 +447,8 @@
         const btn = document.createElement('button');
         btn.disabled = key > todayKey;
         if (isTapType(habit)) {
-          btn.innerHTML = EMOJI[value] || '<span class="dot"></span>';
+          const emoji = emojiFor(habit, value);
+          if (emoji) btn.textContent = emoji; else btn.innerHTML = '<span class="dot"></span>';
           btn.setAttribute('aria-label', `${habit.name}, ${d.toDateString()}: ${LABEL[value] || 'blank'}`);
           btn.addEventListener('click', () => cycle(key, habit));
         } else {
@@ -639,6 +647,36 @@
   }
   document.getElementById('new-type').replaceWith(Object.assign(typeSelect('check'), { id: 'new-type' }));
 
+  // Keeps only the first character/emoji typed (emoji can be several code points, e.g. 🏊‍♂️).
+  function firstGrapheme(text) {
+    const trimmed = text.trim();
+    if (!trimmed) return '';
+    if (!Intl.Segmenter) return [...trimmed][0];
+    return new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(trimmed)[Symbol.iterator]().next().value.segment;
+  }
+
+  function emojiEditor(habit) {
+    const box = document.createElement('div');
+    box.className = 'emoji-row';
+    box.append('Emojis');
+    for (const state of TYPES[typeOf(habit)].states.filter(Boolean)) {
+      const field = document.createElement('input');
+      field.value = emojiFor(habit, state);
+      field.setAttribute('aria-label', `${habit.name} emoji for ${LABEL[state]}`);
+      field.addEventListener('focus', () => field.select());
+      field.addEventListener('change', () => {
+        const chosen = firstGrapheme(field.value);
+        habit.emoji = { ...habit.emoji };
+        if (chosen && chosen !== EMOJI[state]) habit.emoji[state] = chosen;
+        else delete habit.emoji[state]; // empty = back to the default
+        if (!Object.keys(habit.emoji).length) delete habit.emoji;
+        habitsChanged();
+      });
+      box.appendChild(field);
+    }
+    return box;
+  }
+
   function renderHabitEditor() {
     habitList.innerHTML = '';
     const active = activeHabits();
@@ -674,6 +712,7 @@
         habitsChanged();
       });
       row.append(input, type, up, down, remove);
+      if (isTapType(habit)) row.appendChild(emojiEditor(habit));
       habitList.appendChild(row);
     });
   }

@@ -1,6 +1,6 @@
 // Caches the app so it opens offline. Bump CACHE (and ?v= in index.html/cloud.js) on every release.
-const CACHE = 'habits-v17';
-const FILES = ['./', 'index.html', 'cloud.js?v=17', 'firebase-config.js?v=17', 'query.js?v=17', 'vendor/sql-wasm.js', 'vendor/sql-wasm.wasm', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'habits-v18';
+const FILES = ['./', 'index.html', 'cloud.js?v=18', 'firebase-config.js?v=18', 'query.js?v=18', 'vendor/sql-wasm.js', 'vendor/sql-wasm.wasm', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));

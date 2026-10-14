@@ -75,7 +75,8 @@ export async function runQuery(sql, data, habits) {
         if (typeof entry === 'number') {
           insert.run([date, weekday, name, habitId, h?.type || 'score', null, null, null, entry]);
         } else {
-          insert.run([date, weekday, name, habitId, h?.type || 'check', entry, EMOJI[entry] || '', SCORE[entry] ?? null, SCORE[entry] ?? null]);
+          const emoji = h?.emoji?.[entry] || EMOJI[entry] || '';
+          insert.run([date, weekday, name, habitId, h?.type || 'check', entry, emoji, SCORE[entry] ?? null, SCORE[entry] ?? null]);
         }
       }
     }
