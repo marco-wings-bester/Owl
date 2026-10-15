@@ -2,7 +2,7 @@
 // Each user's data is one Firestore document:
 //   users/{uid} = { days: { "2026-10-11": { sugar: "tick" } }, habits: [{ id: "sugar", name: "No Sugar" }] }
 // The phone's local copy is still kept, so the app works offline and without signing in.
-import { firebaseConfig } from './firebase-config.js?v=21';
+import { firebaseConfig } from './firebase-config.js?v=22';
 
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
 

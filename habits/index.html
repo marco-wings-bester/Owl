@@ -300,8 +300,8 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=21';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=21';
+  import { startCloud } from './cloud.js?v=22';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=22';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
@@ -439,8 +439,7 @@
     if (!activeHabits().length) {
       body.innerHTML = '<tr><td colspan="8" class="empty">No habits yet. Add some in ⚙︎ Settings.</td></tr>';
     }
-    // Habits are listed Morning → Day → Evening. Once more than one section is in use,
-    // each habit name gets its section's emoji (🌅 ☀️ 🌙) in front.
+    // Habits are listed Morning → Day → Evening, each with its section's emoji (🌅 ☀️ 🌙) in front.
     const usedSections = Object.keys(SECTIONS).filter(sec => habitsIn(sec).length);
     for (const habit of usedSections.flatMap(habitsIn)) {
       const tr = document.createElement('tr');
@@ -448,11 +447,9 @@
       const nameCell = document.createElement('td');
       nameCell.className = 'habit';
       nameCell.textContent = habit.name;
-      if (usedSections.length > 1) {
-        nameCell.prepend(Object.assign(document.createElement('span'), {
-          className: 'sec', textContent: SECTION_EMOJI[sectionOf(habit)], title: SECTIONS[sectionOf(habit)],
-        }));
-      }
+      nameCell.prepend(Object.assign(document.createElement('span'), {
+        className: 'sec', textContent: SECTION_EMOJI[sectionOf(habit)], title: SECTIONS[sectionOf(habit)],
+      }));
       let sub;
       if (isTapType(habit)) {
         const s = streak(habit.id);
