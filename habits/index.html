@@ -19,6 +19,7 @@
     --line: #e2e7e5;
     --accent: #1f6f5c;
     --today: #e3f2ec;
+    --spectrum-l: 40%; /* lightness of the green → red 0–10 colours */
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -29,6 +30,7 @@
       --line: #2a3330;
       --accent: #5cc4a6;
       --today: #1f3530;
+      --spectrum-l: 58%;
     }
   }
   * { box-sizing: border-box; }
@@ -308,8 +310,8 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=24';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=24';
+  import { startCloud } from './cloud.js?v=25';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=25';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
@@ -329,19 +331,17 @@
   const SLEEP_HABIT = { id: SLEEP, name: 'Sleep score', type: 'score' };
   // What a new user starts with (existing users keep their own list).
   const DEFAULT_HABITS = [
-    { kind: 'divider', id: 'd_morning', name: '🌅 Morning' },
-    { id: 'headache', name: 'Headache', type: 'scale' },
     { id: 'stress', name: 'Stress', type: 'score', lowerIsBetter: true },
-    SLEEP_HABIT,
-    { kind: 'divider', id: 'd_day', name: '☀️ Day' },
+    { id: 'headache', name: 'Headache', type: 'scale' },
+    { kind: 'divider', id: 'd_day', name: 'Day' },
     { id: 'caffeine', name: 'No Caffeine' },
-    { id: 'sugar', name: 'No Sugar' },
     { id: 'swim', name: 'Swim', type: 'yesno', emoji: { tick: '🏊‍♂️' } },
     { id: 'exercise', name: 'Exercise' },
     { id: 'nails', name: 'No Nail Biting' },
-    { kind: 'divider', id: 'd_evening', name: '🌙 Evening' },
+    { kind: 'divider', id: 'd_night', name: 'Night' },
+    { id: 'sugar_eaten', name: 'Sugar', type: 'scale', spectrum: 'lower' },
     { id: 'reading', name: 'Read 10 pages' },
-    { id: 'sugar_eaten', name: 'Sugar eaten', type: 'scale' },
+    SLEEP_HABIT,
   ];
   // The list mixes habits and section lines ({ kind: 'divider' }). A habit belongs to the nearest line above it.
   const isDivider = item => item.kind === 'divider';
@@ -404,6 +404,12 @@
     return match ? match[0] : '';
   };
 
+  // 0–10 habits can be coloured on a green → red spectrum. 'lower' = 0 is green (e.g. sugar), 'higher' = 10 is green.
+  function spectrumColour(value, habit) {
+    if (!habit.spectrum) return '';
+    const t = habit.spectrum === 'lower' ? value / 10 : 1 - value / 10; // 0 = best, 1 = worst
+    return `hsl(${Math.round(135 * (1 - t))}, 75%, var(--spectrum-l))`;
+  }
   // Score colours: green/amber/red. For "lower is better" scores (e.g. stress) the scale is flipped.
   const scoreClass = (n, habit) => {
     const v = habit?.lowerIsBetter ? 100 - n : n;
@@ -515,6 +521,7 @@
           if (typeof value === 'number') {
             btn.textContent = type === 'score' ? value : formatNumber(value);
             btn.className = type === 'score' ? `score ${scoreClass(value, habit)}` : 'number';
+            if (type === 'scale' && habit.spectrum) btn.style.color = spectrumColour(value, habit);
           } else {
             btn.innerHTML = '<span class="dot"></span>';
           }
@@ -575,7 +582,10 @@
     scaleGrid.hidden = !scale;
     document.querySelector('#value-dialog .value-row').hidden = scale;
     document.getElementById('value-save').hidden = scale;
-    [...scaleGrid.children].forEach((b, i) => b.classList.toggle('selected', data[key]?.[habit.id] === i));
+    [...scaleGrid.children].forEach((b, i) => {
+      b.classList.toggle('selected', data[key]?.[habit.id] === i);
+      b.style.color = b.classList.contains('selected') ? '' : spectrumColour(i, habit); // preview the colours
+    });
     document.getElementById('value-title').textContent = habit.name;
     document.getElementById('value-date').textContent = habit.id === SLEEP
       ? `Night of ${shortDate(addDays(date, -1))} → ${shortDate(date)}`
@@ -751,6 +761,20 @@
     return select;
   }
 
+  // For 0–10 habits: optional green → red colouring.
+  function spectrumSelect(habit) {
+    const select = document.createElement('select');
+    select.add(new Option('No colours', '', false, !habit.spectrum));
+    select.add(new Option('🟢→🔴 Lower is better', 'lower', false, habit.spectrum === 'lower'));
+    select.add(new Option('🔴→🟢 Higher is better', 'higher', false, habit.spectrum === 'higher'));
+    select.setAttribute('aria-label', `${habit.name}: colours`);
+    select.addEventListener('change', () => {
+      if (select.value) habit.spectrum = select.value; else delete habit.spectrum;
+      habitsChanged();
+    });
+    return select;
+  }
+
   function renderHabitEditor() {
     habitList.innerHTML = '';
     const items = activeItems();
@@ -821,6 +845,7 @@
       buttons.append(up, down, remove);
       if (isTapType(habit)) bottom.appendChild(emojiEditor(habit));
       if (typeOf(habit) === 'score') bottom.appendChild(directionSelect(habit));
+      if (typeOf(habit) === 'scale') bottom.appendChild(spectrumSelect(habit));
       bottom.appendChild(buttons);
       row.append(input, type, bottom);
       return row;
