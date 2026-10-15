@@ -124,11 +124,19 @@
   /* Habit editor */
   .habit-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
   .habit-row > input { flex: 1 1 100%; } /* name on its own line, type + buttons below */
-  .emoji-row { flex: 1 1 100%; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .8rem; }
+  .emoji-row { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .8rem; }
+  .row-bottom { flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .row-buttons { display: flex; gap: 6px; margin-left: auto; }
+  .editor-section { margin: 4px 2px 10px; font-size: .8rem; font-weight: 700; color: var(--muted); }
+  .editor-section:not(:first-child) { margin-top: 18px; }
+  tr.section-row td {
+    padding: 12px 4px 4px 12px; text-align: left; white-space: nowrap; border-bottom: 0;
+    font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted);
+  }
   .habit-row .emoji-row input {
     flex: 0 0 48px; width: 48px; height: 44px; padding: 0; text-align: center; font-size: 1.35rem;
   }
-  .habit-row select, #new-type {
+  .habit-row select, #new-type, #new-section {
     flex: 1; min-width: 0; height: 40px; border: 1px solid var(--line); border-radius: 10px;
     background: var(--bg); color: var(--text); padding: 0 8px; font-size: .9rem;
   }
@@ -240,10 +248,11 @@
       <form class="add-row" id="add-form">
         <input id="new-habit" placeholder="Add a habit, e.g. Read 10 pages" maxlength="40" autocomplete="off">
         <select id="new-type" aria-label="Input type"></select>
+        <select id="new-section" aria-label="Section"></select>
         <button id="add-habit" type="submit">Add</button>
       </form>
     </div>
-    <p class="hint" style="text-align:left">Each habit has an input type: ✅ 😐 ❌, ✅ ❌, a 1–10 scale (e.g. headache), a 0–100 score, or any number (e.g. glasses of water). Tap an emoji box to pick your own emoji (clear it to go back to the default). Use ↑ ↓ to set the order. Removing a habit hides it but keeps its history.</p>
+    <p class="hint" style="text-align:left">Each habit has an input type: ✅ 😐 ❌, ✅ ❌, a 1–10 scale (e.g. headache), a 0–100 score, or any number (e.g. glasses of water). Tap an emoji box to pick your own emoji (clear it to go back to the default). Put each habit in a Morning, Day or Evening section and use ↑ ↓ to set the order within it. Removing a habit hides it but keeps its history.</p>
 
     <h2>Account</h2>
     <div id="account">
@@ -294,8 +303,8 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=18';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=18';
+  import { startCloud } from './cloud.js?v=19';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=19';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
@@ -312,18 +321,21 @@
   const isTapType = h => !!TYPES[typeOf(h)].states;
   // The sleep score (for last night) is stored under a reserved id, logged on the morning's date.
   const SLEEP = '_sleep';
-  const SLEEP_HABIT = { id: SLEEP, name: 'Sleep score', type: 'score' };
+  const SLEEP_HABIT = { id: SLEEP, name: 'Sleep score', type: 'score', section: 'morning' };
   // What a new user starts with (existing users keep their own list).
   const DEFAULT_HABITS = [
-    { id: 'headache', name: 'Headache', type: 'scale' },
-    { id: 'caffeine', name: 'No Caffeine' },
-    { id: 'sugar', name: 'No Sugar' },
-    { id: 'swim', name: 'Swim', type: 'yesno', emoji: { tick: '🏊‍♂️' } },
-    { id: 'exercise', name: 'Exercise' },
-    { id: 'nails', name: 'No Nail Biting' },
-    { id: 'reading', name: 'Read 10 pages' },
+    { id: 'headache', name: 'Headache', type: 'scale', section: 'morning' },
     SLEEP_HABIT,
+    { id: 'caffeine', name: 'No Caffeine', section: 'day' },
+    { id: 'sugar', name: 'No Sugar', section: 'day' },
+    { id: 'swim', name: 'Swim', type: 'yesno', emoji: { tick: '🏊‍♂️' }, section: 'day' },
+    { id: 'exercise', name: 'Exercise', section: 'day' },
+    { id: 'nails', name: 'No Nail Biting', section: 'day' },
+    { id: 'reading', name: 'Read 10 pages', section: 'evening' },
   ];
+  // Habits are grouped into these sections, in this order. Habits without one go in Day.
+  const SECTIONS = { morning: '🌅 Morning', day: '☀️ Day', evening: '🌙 Evening' };
+  const sectionOf = h => SECTIONS[h.section] ? h.section : 'day';
   const HABITS_KEY = 'habit-tracker-habits';
   const EMOJI = { tick: '✅', avg: '😐', cross: '❌' };
   const LABEL = { '': 'blank', tick: 'done', avg: 'so-so', cross: 'missed' };
@@ -361,6 +373,7 @@
     try { localStorage.setItem(HABITS_KEY, JSON.stringify(habits)); } catch {}
   }
   const activeHabits = () => habits.filter(h => !h.archived);
+  const habitsIn = section => activeHabits().filter(h => sectionOf(h) === section);
 
   const scoreClass = n => n >= 80 ? 'good' : n >= 60 ? 'ok' : 'bad';
   const formatNumber = n => n >= 10000 ? Math.round(n / 1000) + 'k' : n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(Math.round(n * 10) / 10);
@@ -423,7 +436,16 @@
     if (!activeHabits().length) {
       body.innerHTML = '<tr><td colspan="8" class="empty">No habits yet. Add some in ⚙︎ Settings.</td></tr>';
     }
-    for (const habit of activeHabits()) {
+    // Section headings only appear once habits are spread over more than one section.
+    const usedSections = Object.keys(SECTIONS).filter(sec => habitsIn(sec).length);
+    for (const habit of usedSections.flatMap(habitsIn)) {
+      if (usedSections.length > 1 && habitsIn(sectionOf(habit))[0] === habit) {
+        const heading = document.createElement('tr');
+        heading.className = 'section-row';
+        heading.innerHTML = `<td>${SECTIONS[sectionOf(habit)]}</td>` +
+          days.map(d => `<td class="${dateKey(d) === todayKey ? 'is-today' : ''}"></td>`).join('');
+        body.appendChild(heading);
+      }
       const tr = document.createElement('tr');
       const type = typeOf(habit);
       const nameCell = document.createElement('td');
@@ -629,8 +651,8 @@
   }
 
   function moveHabit(habit, delta) {
-    const active = activeHabits();
-    const other = active[active.indexOf(habit) + delta];
+    const peers = habitsIn(sectionOf(habit)); // ↑ ↓ move within the habit's own section
+    const other = peers[peers.indexOf(habit) + delta];
     if (!other) return;
     const i = habits.indexOf(habit), j = habits.indexOf(other);
     [habits[i], habits[j]] = [habits[j], habits[i]];
@@ -646,6 +668,16 @@
     return select;
   }
   document.getElementById('new-type').replaceWith(Object.assign(typeSelect('check'), { id: 'new-type' }));
+
+  function sectionSelect(selected) {
+    const select = document.createElement('select');
+    for (const [value, label] of Object.entries(SECTIONS)) {
+      select.add(new Option(label, value, false, value === selected));
+    }
+    select.setAttribute('aria-label', 'Section');
+    return select;
+  }
+  document.getElementById('new-section').replaceWith(Object.assign(sectionSelect('day'), { id: 'new-section' }));
 
   // Keeps only the first character/emoji typed (emoji can be several code points, e.g. 🏊‍♂️).
   function firstGrapheme(text) {
@@ -679,8 +711,15 @@
 
   function renderHabitEditor() {
     habitList.innerHTML = '';
-    const active = activeHabits();
-    active.forEach((habit, index) => {
+    for (const section of Object.keys(SECTIONS)) {
+      const active = habitsIn(section);
+      if (!active.length) continue;
+      habitList.appendChild(Object.assign(document.createElement('div'), { className: 'editor-section', textContent: SECTIONS[section] }));
+      active.forEach((habit, index) => habitList.appendChild(habitRow(habit, index, active.length)));
+    }
+  }
+
+  function habitRow(habit, index, count) {
       const row = document.createElement('div');
       row.className = 'habit-row';
       const input = document.createElement('input');
@@ -696,7 +735,7 @@
       const up = Object.assign(document.createElement('button'), { textContent: '↑', disabled: index === 0 });
       up.setAttribute('aria-label', `Move ${habit.name} up`);
       up.addEventListener('click', () => moveHabit(habit, -1));
-      const down = Object.assign(document.createElement('button'), { textContent: '↓', disabled: index === active.length - 1 });
+      const down = Object.assign(document.createElement('button'), { textContent: '↓', disabled: index === count - 1 });
       down.setAttribute('aria-label', `Move ${habit.name} down`);
       down.addEventListener('click', () => moveHabit(habit, 1));
       const remove = Object.assign(document.createElement('button'), { textContent: '✕' });
@@ -711,10 +750,22 @@
         habit.type = type.value;
         habitsChanged();
       });
-      row.append(input, type, up, down, remove);
-      if (isTapType(habit)) row.appendChild(emojiEditor(habit));
-      habitList.appendChild(row);
-    });
+      const section = sectionSelect(sectionOf(habit));
+      section.addEventListener('change', () => {
+        habit.section = section.value;
+        habits.splice(habits.indexOf(habit), 1);
+        habits.push(habit); // lands at the bottom of its new section
+        habitsChanged();
+      });
+      const bottom = document.createElement('div');
+      bottom.className = 'row-bottom';
+      const buttons = document.createElement('div');
+      buttons.className = 'row-buttons';
+      buttons.append(up, down, remove);
+      if (isTapType(habit)) bottom.appendChild(emojiEditor(habit));
+      bottom.appendChild(buttons);
+      row.append(input, type, section, bottom);
+      return row;
   }
 
   document.getElementById('add-form').addEventListener('submit', e => {
@@ -724,13 +775,15 @@
     if (!name) return;
     // Re-adding a removed habit with the same name brings its history back.
     const old = habits.find(h => h.archived && h.name.toLowerCase() === name.toLowerCase());
+    const section = document.getElementById('new-section').value;
     if (old) {
       delete old.archived;
+      old.section = section;
       habits.splice(habits.indexOf(old), 1);
       habits.push(old);
     } else {
       const type = document.getElementById('new-type').value;
-      habits.push({ id: 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, type });
+      habits.push({ id: 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, type, section });
     }
     field.value = '';
     habitsChanged();

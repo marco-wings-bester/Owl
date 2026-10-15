@@ -23,6 +23,7 @@ export const SCHEMA = `habit_list (
   habit_id  TEXT
   habit     TEXT
   type      TEXT     -- 'check', 'yesno', 'scale' (1–10), 'score' (0–100) or 'number'
+  section   TEXT     -- 'morning', 'day' or 'evening'
   active    INTEGER  -- 1 = tracked, 0 = removed
 )
 
@@ -38,6 +39,7 @@ habits (
   habit     TEXT  -- 'No Sugar', 'Exercise', …
   habit_id  TEXT  -- 'sugar', 'exercise', …
   type      TEXT  -- 'check', 'yesno', 'scale', 'score' or 'number'
+  section   TEXT  -- 'morning', 'day' or 'evening'
   status    TEXT  -- 'tick', 'avg' or 'cross' (tap types)
   emoji     TEXT  -- ✅ 😐 ❌ (tap types)
   score     REAL  -- 1, 0.5 or 0 (tap types)
@@ -59,13 +61,14 @@ export async function runQuery(sql, data, habits) {
   const SQL = await loadSqlJs();
   const db = new SQL.Database();
   try {
-    db.run(`CREATE TABLE habits (date TEXT, weekday TEXT, habit TEXT, habit_id TEXT, type TEXT,
+    db.run(`CREATE TABLE habits (date TEXT, weekday TEXT, habit TEXT, habit_id TEXT, type TEXT, section TEXT,
                                  status TEXT, emoji TEXT, score REAL, value REAL)`);
-    db.run('CREATE TABLE habit_list (habit_id TEXT, habit TEXT, type TEXT, active INTEGER)');
-    for (const h of habits) db.run('INSERT INTO habit_list VALUES (?, ?, ?, ?)', [h.id, h.name, h.type || 'check', h.archived ? 0 : 1]);
+    db.run('CREATE TABLE habit_list (habit_id TEXT, habit TEXT, type TEXT, section TEXT, active INTEGER)');
+    const sectionOf = h => ['morning', 'day', 'evening'].includes(h?.section) ? h.section : 'day';
+    for (const h of habits) db.run('INSERT INTO habit_list VALUES (?, ?, ?, ?, ?)', [h.id, h.name, h.type || 'check', sectionOf(h), h.archived ? 0 : 1]);
     db.run("CREATE VIEW sleep AS SELECT date, weekday, CAST(value AS INTEGER) AS score FROM habits WHERE habit_id = '_sleep'");
     const byId = Object.fromEntries(habits.map(h => [h.id, h]));
-    const insert = db.prepare('INSERT INTO habits VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    const insert = db.prepare('INSERT INTO habits VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     for (const [date, entries] of Object.entries(data)) {
       const [y, m, d] = date.split('-').map(Number);
       const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()];
@@ -73,10 +76,10 @@ export async function runQuery(sql, data, habits) {
         const h = byId[habitId];
         const name = h?.name || (habitId === '_sleep' ? 'Sleep score' : habitId);
         if (typeof entry === 'number') {
-          insert.run([date, weekday, name, habitId, h?.type || 'score', null, null, null, entry]);
+          insert.run([date, weekday, name, habitId, h?.type || 'score', sectionOf(h), null, null, null, entry]);
         } else {
           const emoji = h?.emoji?.[entry] || EMOJI[entry] || '';
-          insert.run([date, weekday, name, habitId, h?.type || 'check', entry, emoji, SCORE[entry] ?? null, SCORE[entry] ?? null]);
+          insert.run([date, weekday, name, habitId, h?.type || 'check', sectionOf(h), entry, emoji, SCORE[entry] ?? null, SCORE[entry] ?? null]);
         }
       }
     }
