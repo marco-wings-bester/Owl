@@ -60,7 +60,7 @@
   tr:last-child td { border-bottom: 0; }
   thead th { font-size: .72rem; font-weight: 600; color: var(--muted); padding: 8px 0 6px; }
   thead th .num { display: block; font-size: 1rem; color: var(--text); }
-  th.habit { width: 30%; text-align: left; padding-left: 12px; }
+  th.habit { width: 33%; text-align: left; padding-left: 12px; }
   td.habit { text-align: left; padding: 6px 4px 6px 12px; font-size: .85rem; font-weight: 600; line-height: 1.2; }
   td.habit .streak { display: block; font-weight: 400; color: var(--muted); font-size: .75rem; margin-top: 2px; }
   .is-today { background: var(--today); }
@@ -129,10 +129,7 @@
   .row-buttons { display: flex; gap: 6px; margin-left: auto; }
   .editor-section { margin: 4px 2px 10px; font-size: .8rem; font-weight: 700; color: var(--muted); }
   .editor-section:not(:first-child) { margin-top: 18px; }
-  tr.section-row td {
-    padding: 12px 4px 4px 12px; text-align: left; white-space: nowrap; border-bottom: 0;
-    font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted);
-  }
+  td.habit .sec { margin-right: 5px; font-size: .95em; }
   .habit-row .emoji-row input {
     flex: 0 0 48px; width: 48px; height: 44px; padding: 0; text-align: center; font-size: 1.35rem;
   }
@@ -303,8 +300,8 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=20';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=20';
+  import { startCloud } from './cloud.js?v=21';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=21';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
@@ -336,6 +333,7 @@
   ];
   // Habits are grouped into these sections, in this order. Habits without one go in Day.
   const SECTIONS = { morning: '🌅 Morning', day: '☀️ Day', evening: '🌙 Evening' };
+  const SECTION_EMOJI = { morning: '🌅', day: '☀️', evening: '🌙' };
   const sectionOf = h => SECTIONS[h.section] ? h.section : 'day';
   const HABITS_KEY = 'habit-tracker-habits';
   const EMOJI = { tick: '✅', avg: '😐', cross: '❌' };
@@ -441,21 +439,20 @@
     if (!activeHabits().length) {
       body.innerHTML = '<tr><td colspan="8" class="empty">No habits yet. Add some in ⚙︎ Settings.</td></tr>';
     }
-    // Section headings only appear once habits are spread over more than one section.
+    // Habits are listed Morning → Day → Evening. Once more than one section is in use,
+    // each habit name gets its section's emoji (🌅 ☀️ 🌙) in front.
     const usedSections = Object.keys(SECTIONS).filter(sec => habitsIn(sec).length);
     for (const habit of usedSections.flatMap(habitsIn)) {
-      if (usedSections.length > 1 && habitsIn(sectionOf(habit))[0] === habit) {
-        const heading = document.createElement('tr');
-        heading.className = 'section-row';
-        heading.innerHTML = `<td>${SECTIONS[sectionOf(habit)]}</td>` +
-          days.map(d => `<td class="${dateKey(d) === todayKey ? 'is-today' : ''}"></td>`).join('');
-        body.appendChild(heading);
-      }
       const tr = document.createElement('tr');
       const type = typeOf(habit);
       const nameCell = document.createElement('td');
       nameCell.className = 'habit';
       nameCell.textContent = habit.name;
+      if (usedSections.length > 1) {
+        nameCell.prepend(Object.assign(document.createElement('span'), {
+          className: 'sec', textContent: SECTION_EMOJI[sectionOf(habit)], title: SECTIONS[sectionOf(habit)],
+        }));
+      }
       let sub;
       if (isTapType(habit)) {
         const s = streak(habit.id);
