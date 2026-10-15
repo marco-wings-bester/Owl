@@ -127,25 +127,33 @@
   .emoji-row { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .8rem; }
   .row-bottom { flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
   .row-buttons { display: flex; gap: 6px; margin-left: auto; }
-  .editor-section { margin: 4px 2px 10px; font-size: .8rem; font-weight: 700; color: var(--muted); }
-  .editor-section:not(:first-child) { margin-top: 18px; }
+  /* Section lines */
+  .divider-row { display: flex; gap: 6px; align-items: center; padding: 10px 0; margin-bottom: 10px; border-top: 2px solid var(--muted); border-bottom: 1px solid var(--line); }
+  .divider-row input { flex: 1; font-weight: 700; }
+  #add-divider { flex: 1 1 100%; border: 1px dashed var(--muted); border-radius: 10px; height: 40px; background: transparent; color: var(--text); font-size: .9rem; }
+  tr.divider-row-table td {
+    padding: 12px 4px 5px 12px; text-align: left; white-space: nowrap;
+    border-top: 2px solid var(--muted); border-bottom: 1px solid var(--line);
+    font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted);
+  }
+  tr.divider-row-table.unnamed td { padding: 0; height: 6px; }
   td.habit .sec { margin-right: 5px; font-size: .95em; }
   .habit-row .emoji-row input {
     flex: 0 0 48px; width: 48px; height: 44px; padding: 0; text-align: center; font-size: 1.35rem;
   }
-  .habit-row select, #new-type, #new-section {
+  .habit-row select, #new-type {
     flex: 1; min-width: 0; height: 40px; border: 1px solid var(--line); border-radius: 10px;
     background: var(--bg); color: var(--text); padding: 0 8px; font-size: .9rem;
   }
-  .habit-row input, #new-habit {
+  .habit-row input, .divider-row input, #new-habit {
     min-width: 0; border: 1px solid var(--line); border-radius: 10px;
     background: var(--bg); color: var(--text); padding: 10px; font-size: .95rem; user-select: text;
   }
-  .habit-row button, #add-habit {
+  .habit-row button, .divider-row button, #add-habit {
     flex-shrink: 0; border: 0; border-radius: 10px; height: 40px; min-width: 40px;
     background: var(--line); color: var(--text); font-size: 1rem;
   }
-  .habit-row button:disabled { opacity: .3; }
+  .habit-row button:disabled, .divider-row button:disabled { opacity: .3; }
   #add-habit { background: var(--accent); color: #fff; font-weight: 600; padding: 0 14px; font-size: .9rem; }
   .add-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
   .add-row #new-habit { flex: 1 1 100%; }
@@ -245,11 +253,11 @@
       <form class="add-row" id="add-form">
         <input id="new-habit" placeholder="Add a habit, e.g. Read 10 pages" maxlength="40" autocomplete="off">
         <select id="new-type" aria-label="Input type"></select>
-        <select id="new-section" aria-label="Section"></select>
         <button id="add-habit" type="submit">Add</button>
+        <button id="add-divider" type="button">➕ Add section line</button>
       </form>
     </div>
-    <p class="hint" style="text-align:left">Each habit has an input type: ✅ 😐 ❌, ✅ ❌, a 1–10 scale (e.g. headache), a 0–100 score, or any number (e.g. glasses of water). Tap an emoji box to pick your own emoji (clear it to go back to the default). Put each habit in a Morning, Day or Evening section and use ↑ ↓ to set the order within it. Removing a habit hides it but keeps its history.</p>
+    <p class="hint" style="text-align:left">Each habit has an input type: ✅ 😐 ❌, ✅ ❌, a 1–10 scale (e.g. headache), a 0–100 score, or any number (e.g. glasses of water). Tap an emoji box to pick your own emoji (clear it to go back to the default). Section lines split your list into groups (e.g. 🌅 Morning): move them with ↑ ↓ like habits, and every habit below a line belongs to it. If a line's name starts with an emoji, the habits under it show that emoji. Use ↑ ↓ to set the order. Removing a habit hides it but keeps its history.</p>
 
     <h2>Account</h2>
     <div id="account">
@@ -300,8 +308,8 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=22';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=22';
+  import { startCloud } from './cloud.js?v=23';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=23';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
@@ -318,23 +326,25 @@
   const isTapType = h => !!TYPES[typeOf(h)].states;
   // The sleep score (for last night) is stored under a reserved id, logged on the morning's date.
   const SLEEP = '_sleep';
-  const SLEEP_HABIT = { id: SLEEP, name: 'Sleep score', type: 'score', section: 'morning' };
+  const SLEEP_HABIT = { id: SLEEP, name: 'Sleep score', type: 'score' };
   // What a new user starts with (existing users keep their own list).
   const DEFAULT_HABITS = [
-    { id: 'headache', name: 'Headache', type: 'scale', section: 'morning' },
-    { id: 'stress', name: 'Stress', type: 'score', lowerIsBetter: true, section: 'morning' },
+    { kind: 'divider', id: 'd_morning', name: '🌅 Morning' },
+    { id: 'headache', name: 'Headache', type: 'scale' },
+    { id: 'stress', name: 'Stress', type: 'score', lowerIsBetter: true },
     SLEEP_HABIT,
-    { id: 'caffeine', name: 'No Caffeine', section: 'day' },
-    { id: 'sugar', name: 'No Sugar', section: 'day' },
-    { id: 'swim', name: 'Swim', type: 'yesno', emoji: { tick: '🏊‍♂️' }, section: 'day' },
-    { id: 'exercise', name: 'Exercise', section: 'day' },
-    { id: 'nails', name: 'No Nail Biting', section: 'day' },
-    { id: 'reading', name: 'Read 10 pages', section: 'evening' },
+    { kind: 'divider', id: 'd_day', name: '☀️ Day' },
+    { id: 'caffeine', name: 'No Caffeine' },
+    { id: 'sugar', name: 'No Sugar' },
+    { id: 'swim', name: 'Swim', type: 'yesno', emoji: { tick: '🏊‍♂️' } },
+    { id: 'exercise', name: 'Exercise' },
+    { id: 'nails', name: 'No Nail Biting' },
+    { kind: 'divider', id: 'd_evening', name: '🌙 Evening' },
+    { id: 'reading', name: 'Read 10 pages' },
   ];
-  // Habits are grouped into these sections, in this order. Habits without one go in Day.
-  const SECTIONS = { morning: '🌅 Morning', day: '☀️ Day', evening: '🌙 Evening' };
-  const SECTION_EMOJI = { morning: '🌅', day: '☀️', evening: '🌙' };
-  const sectionOf = h => SECTIONS[h.section] ? h.section : 'day';
+  // The list mixes habits and section lines ({ kind: 'divider' }). A habit belongs to the nearest line above it.
+  const isDivider = item => item.kind === 'divider';
+  const newId = prefix => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const HABITS_KEY = 'habit-tracker-habits';
   const EMOJI = { tick: '✅', avg: '😐', cross: '❌' };
   const LABEL = { '': 'blank', tick: 'done', avg: 'so-so', cross: 'missed' };
@@ -357,7 +367,20 @@
   function loadHabits() {
     let list;
     try { list = JSON.parse(localStorage.getItem(HABITS_KEY)) || DEFAULT_HABITS; } catch { list = DEFAULT_HABITS; }
-    return withSleep(structuredClone(list));
+    return withSections(withSleep(structuredClone(list)));
+  }
+  // Lists from the version with a Morning/Day/Evening dropdown become section lines, in the same order.
+  function withSections(list) {
+    if (!list.some(h => h.section)) return list;
+    const names = { morning: '🌅 Morning', day: '☀️ Day', evening: '🌙 Evening' };
+    const sectionOf = h => names[h.section] ? h.section : 'day';
+    const result = [];
+    for (const key of Object.keys(names)) {
+      const members = list.filter(h => !isDivider(h) && !h.archived && sectionOf(h) === key);
+      if (members.length) result.push({ kind: 'divider', id: 'd_' + key, name: names[key] }, ...members);
+    }
+    result.push(...list.filter(h => h.archived || isDivider(h)));
+    return result.map(({ section, ...rest }) => rest);
   }
   // Lists made before sleep became a habit get it added (hidden if the old sleep row was switched off).
   function withSleep(list) {
@@ -371,8 +394,14 @@
   function saveHabits() {
     try { localStorage.setItem(HABITS_KEY, JSON.stringify(habits)); } catch {}
   }
-  const activeHabits = () => habits.filter(h => !h.archived);
-  const habitsIn = section => activeHabits().filter(h => sectionOf(h) === section);
+  const activeItems = () => habits.filter(h => !h.archived); // habits and section lines, in order
+  const activeHabits = () => activeItems().filter(h => !isDivider(h));
+  // The emoji a section line's name starts with (e.g. "🌅 Morning" → 🌅), if any.
+  const leadingEmoji = text => {
+    const first = [...(text || '').trim()].slice(0, 8).join('');
+    const match = first.match(/^(\p{Extended_Pictographic}(\uFE0F|\u200D\p{Extended_Pictographic}|\p{Emoji_Modifier})*|\p{Regional_Indicator}{2})/u);
+    return match ? match[0] : '';
+  };
 
   // Score colours: green/amber/red. For "lower is better" scores (e.g. stress) the scale is flipped.
   const scoreClass = (n, habit) => {
@@ -439,17 +468,26 @@
     if (!activeHabits().length) {
       body.innerHTML = '<tr><td colspan="8" class="empty">No habits yet. Add some in ⚙︎ Settings.</td></tr>';
     }
-    // Habits are listed Morning → Day → Evening, each with its section's emoji (🌅 ☀️ 🌙) in front.
-    const usedSections = Object.keys(SECTIONS).filter(sec => habitsIn(sec).length);
-    for (const habit of usedSections.flatMap(habitsIn)) {
+    let sectionEmoji = '';
+    for (const habit of activeItems()) {
+      if (isDivider(habit)) {
+        // A section line across the table; habits below it get its emoji in front of their name.
+        sectionEmoji = leadingEmoji(habit.name);
+        const line = document.createElement('tr');
+        line.className = 'divider-row-table' + (habit.name ? '' : ' unnamed');
+        const label = document.createElement('td');
+        label.textContent = habit.name || '';
+        line.appendChild(label);
+        for (const d of days) line.appendChild(Object.assign(document.createElement('td'), { className: dateKey(d) === todayKey ? 'is-today' : '' }));
+        body.appendChild(line);
+        continue;
+      }
       const tr = document.createElement('tr');
       const type = typeOf(habit);
       const nameCell = document.createElement('td');
       nameCell.className = 'habit';
       nameCell.textContent = habit.name;
-      nameCell.prepend(Object.assign(document.createElement('span'), {
-        className: 'sec', textContent: SECTION_EMOJI[sectionOf(habit)], title: SECTIONS[sectionOf(habit)],
-      }));
+      if (sectionEmoji) nameCell.prepend(Object.assign(document.createElement('span'), { className: 'sec', textContent: sectionEmoji }));
       let sub;
       if (isTapType(habit)) {
         const s = streak(habit.id);
@@ -650,7 +688,7 @@
   }
 
   function moveHabit(habit, delta) {
-    const peers = habitsIn(sectionOf(habit)); // ↑ ↓ move within the habit's own section
+    const peers = activeItems(); // habits and section lines move through the whole list
     const other = peers[peers.indexOf(habit) + delta];
     if (!other) return;
     const i = habits.indexOf(habit), j = habits.indexOf(other);
@@ -668,15 +706,6 @@
   }
   document.getElementById('new-type').replaceWith(Object.assign(typeSelect('check'), { id: 'new-type' }));
 
-  function sectionSelect(selected) {
-    const select = document.createElement('select');
-    for (const [value, label] of Object.entries(SECTIONS)) {
-      select.add(new Option(label, value, false, value === selected));
-    }
-    select.setAttribute('aria-label', 'Section');
-    return select;
-  }
-  document.getElementById('new-section').replaceWith(Object.assign(sectionSelect('day'), { id: 'new-section' }));
 
   // Keeps only the first character/emoji typed (emoji can be several code points, e.g. 🏊‍♂️).
   function firstGrapheme(text) {
@@ -723,12 +752,39 @@
 
   function renderHabitEditor() {
     habitList.innerHTML = '';
-    for (const section of Object.keys(SECTIONS)) {
-      const active = habitsIn(section);
-      if (!active.length) continue;
-      habitList.appendChild(Object.assign(document.createElement('div'), { className: 'editor-section', textContent: SECTIONS[section] }));
-      active.forEach((habit, index) => habitList.appendChild(habitRow(habit, index, active.length)));
-    }
+    const items = activeItems();
+    items.forEach((item, index) =>
+      habitList.appendChild(isDivider(item) ? dividerRow(item, index, items.length) : habitRow(item, index, items.length)));
+  }
+
+  function moveButtons(item, index, count, label) {
+    const up = Object.assign(document.createElement('button'), { textContent: '↑', disabled: index === 0 });
+    up.setAttribute('aria-label', `Move ${label} up`);
+    up.addEventListener('click', () => moveHabit(item, -1));
+    const down = Object.assign(document.createElement('button'), { textContent: '↓', disabled: index === count - 1 });
+    down.setAttribute('aria-label', `Move ${label} down`);
+    down.addEventListener('click', () => moveHabit(item, 1));
+    return [up, down];
+  }
+
+  function dividerRow(item, index, count) {
+    const row = document.createElement('div');
+    row.className = 'divider-row';
+    const input = document.createElement('input');
+    input.value = item.name || '';
+    input.maxLength = 40;
+    input.placeholder = 'Section name (optional), e.g. 🌅 Morning';
+    input.setAttribute('aria-label', 'Section line name');
+    input.addEventListener('change', () => { item.name = input.value.trim(); habitsChanged(); });
+    const label = `section line ${item.name || ''}`.trim();
+    const remove = Object.assign(document.createElement('button'), { textContent: '✕' });
+    remove.setAttribute('aria-label', `Remove ${label}`);
+    remove.addEventListener('click', () => {
+      habits.splice(habits.indexOf(item), 1); // lines have no history, so they're deleted outright
+      habitsChanged();
+    });
+    row.append(input, ...moveButtons(item, index, count, label), remove);
+    return row;
   }
 
   function habitRow(habit, index, count) {
@@ -744,12 +800,7 @@
         habit.name = name;
         habitsChanged();
       });
-      const up = Object.assign(document.createElement('button'), { textContent: '↑', disabled: index === 0 });
-      up.setAttribute('aria-label', `Move ${habit.name} up`);
-      up.addEventListener('click', () => moveHabit(habit, -1));
-      const down = Object.assign(document.createElement('button'), { textContent: '↓', disabled: index === count - 1 });
-      down.setAttribute('aria-label', `Move ${habit.name} down`);
-      down.addEventListener('click', () => moveHabit(habit, 1));
+      const [up, down] = moveButtons(habit, index, count, habit.name);
       const remove = Object.assign(document.createElement('button'), { textContent: '✕' });
       remove.setAttribute('aria-label', `Remove ${habit.name}`);
       remove.addEventListener('click', () => {
@@ -762,13 +813,6 @@
         habit.type = type.value;
         habitsChanged();
       });
-      const section = sectionSelect(sectionOf(habit));
-      section.addEventListener('change', () => {
-        habit.section = section.value;
-        habits.splice(habits.indexOf(habit), 1);
-        habits.push(habit); // lands at the bottom of its new section
-        habitsChanged();
-      });
       const bottom = document.createElement('div');
       bottom.className = 'row-bottom';
       const buttons = document.createElement('div');
@@ -777,7 +821,7 @@
       if (isTapType(habit)) bottom.appendChild(emojiEditor(habit));
       if (typeOf(habit) === 'score') bottom.appendChild(directionSelect(habit));
       bottom.appendChild(buttons);
-      row.append(input, type, section, bottom);
+      row.append(input, type, bottom);
       return row;
   }
 
@@ -787,19 +831,25 @@
     const name = field.value.trim();
     if (!name) return;
     // Re-adding a removed habit with the same name brings its history back.
-    const old = habits.find(h => h.archived && h.name.toLowerCase() === name.toLowerCase());
-    const section = document.getElementById('new-section').value;
+    const old = habits.find(h => h.archived && !isDivider(h) && h.name.toLowerCase() === name.toLowerCase());
     if (old) {
       delete old.archived;
-      old.section = section;
       habits.splice(habits.indexOf(old), 1);
       habits.push(old);
     } else {
       const type = document.getElementById('new-type').value;
-      habits.push({ id: 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, type, section });
+      habits.push({ id: newId('h'), name, type });
     }
     field.value = '';
     habitsChanged();
+  });
+
+  // New section lines go at the bottom; move them into place with ↑.
+  document.getElementById('add-divider').addEventListener('click', () => {
+    habits.push({ kind: 'divider', id: newId('d'), name: '' });
+    habitsChanged();
+    const inputs = habitList.querySelectorAll('.divider-row input');
+    inputs[inputs.length - 1]?.focus();
   });
 
   // ---- Install prompts ----
@@ -887,7 +937,7 @@
     setData: newData => { data = newData; save(); render(); },
     getHabits: () => habits,
     setHabits: newHabits => {
-      const list = withSleep(structuredClone(newHabits));
+      const list = withSections(withSleep(structuredClone(newHabits)));
       // A list from an older version gets the sleep score added/renamed; send that back once sync is ready.
       if (JSON.stringify(list) !== JSON.stringify(newHabits)) setTimeout(() => cloud?.saveHabits(habits));
       if (JSON.stringify(list) === JSON.stringify(habits)) return;

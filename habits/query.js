@@ -23,7 +23,7 @@ export const SCHEMA = `habit_list (
   habit_id  TEXT
   habit     TEXT
   type      TEXT     -- 'check', 'yesno', 'scale' (1–10), 'score' (0–100) or 'number'
-  section   TEXT     -- 'morning', 'day' or 'evening'
+  section   TEXT     -- name of the section line above it, e.g. '🌅 Morning'
   active    INTEGER  -- 1 = tracked, 0 = removed
 )
 
@@ -39,7 +39,7 @@ habits (
   habit     TEXT  -- 'No Sugar', 'Exercise', …
   habit_id  TEXT  -- 'sugar', 'exercise', …
   type      TEXT  -- 'check', 'yesno', 'scale', 'score' or 'number'
-  section   TEXT  -- 'morning', 'day' or 'evening'
+  section   TEXT  -- name of the section line above it
   status    TEXT  -- 'tick', 'avg' or 'cross' (tap types)
   emoji     TEXT  -- ✅ 😐 ❌ (tap types)
   score     REAL  -- 1, 0.5 or 0 (tap types)
@@ -64,7 +64,15 @@ export async function runQuery(sql, data, habits) {
     db.run(`CREATE TABLE habits (date TEXT, weekday TEXT, habit TEXT, habit_id TEXT, type TEXT, section TEXT,
                                  status TEXT, emoji TEXT, score REAL, value REAL)`);
     db.run('CREATE TABLE habit_list (habit_id TEXT, habit TEXT, type TEXT, section TEXT, active INTEGER)');
-    const sectionOf = h => ['morning', 'day', 'evening'].includes(h?.section) ? h.section : 'day';
+    // Each habit's section is the name of the nearest section line above it.
+    const sections = {};
+    let current = null;
+    for (const item of habits) {
+      if (item.kind === 'divider') current = item.name || null;
+      else sections[item.id] = current;
+    }
+    const sectionOf = h => (h ? sections[h.id] ?? null : null);
+    habits = habits.filter(h => h.kind !== 'divider');
     for (const h of habits) db.run('INSERT INTO habit_list VALUES (?, ?, ?, ?, ?)', [h.id, h.name, h.type || 'check', sectionOf(h), h.archived ? 0 : 1]);
     db.run("CREATE VIEW sleep AS SELECT date, weekday, CAST(value AS INTEGER) AS score FROM habits WHERE habit_id = '_sleep'");
     const byId = Object.fromEntries(habits.map(h => [h.id, h]));
