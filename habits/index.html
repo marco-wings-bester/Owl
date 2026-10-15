@@ -303,8 +303,8 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=19';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=19';
+  import { startCloud } from './cloud.js?v=20';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=20';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
@@ -325,6 +325,7 @@
   // What a new user starts with (existing users keep their own list).
   const DEFAULT_HABITS = [
     { id: 'headache', name: 'Headache', type: 'scale', section: 'morning' },
+    { id: 'stress', name: 'Stress', type: 'score', lowerIsBetter: true, section: 'morning' },
     SLEEP_HABIT,
     { id: 'caffeine', name: 'No Caffeine', section: 'day' },
     { id: 'sugar', name: 'No Sugar', section: 'day' },
@@ -375,7 +376,11 @@
   const activeHabits = () => habits.filter(h => !h.archived);
   const habitsIn = section => activeHabits().filter(h => sectionOf(h) === section);
 
-  const scoreClass = n => n >= 80 ? 'good' : n >= 60 ? 'ok' : 'bad';
+  // Score colours: green/amber/red. For "lower is better" scores (e.g. stress) the scale is flipped.
+  const scoreClass = (n, habit) => {
+    const v = habit?.lowerIsBetter ? 100 - n : n;
+    return v >= 80 ? 'good' : v >= 60 ? 'ok' : 'bad';
+  };
   const formatNumber = n => n >= 10000 ? Math.round(n / 1000) + 'k' : n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(Math.round(n * 10) / 10);
   function recentAverage(habitId) {
     const values = Array.from({ length: 7 }, (_, i) => data[dateKey(addDays(startOfToday(), -i))]?.[habitId])
@@ -476,7 +481,7 @@
         } else {
           if (typeof value === 'number') {
             btn.textContent = type === 'score' ? value : formatNumber(value);
-            btn.className = type === 'score' ? `score ${scoreClass(value)}` : 'number';
+            btn.className = type === 'score' ? `score ${scoreClass(value, habit)}` : 'number';
           } else {
             btn.innerHTML = '<span class="dot"></span>';
           }
@@ -709,6 +714,19 @@
     return box;
   }
 
+  // For 0–100 scores: is a high number good (sleep) or bad (stress)? Only changes the colours.
+  function directionSelect(habit) {
+    const select = document.createElement('select');
+    select.add(new Option('↑ Higher is better', 'higher', false, !habit.lowerIsBetter));
+    select.add(new Option('↓ Lower is better', 'lower', false, !!habit.lowerIsBetter));
+    select.setAttribute('aria-label', `${habit.name}: which direction is better`);
+    select.addEventListener('change', () => {
+      if (select.value === 'lower') habit.lowerIsBetter = true; else delete habit.lowerIsBetter;
+      habitsChanged();
+    });
+    return select;
+  }
+
   function renderHabitEditor() {
     habitList.innerHTML = '';
     for (const section of Object.keys(SECTIONS)) {
@@ -763,6 +781,7 @@
       buttons.className = 'row-buttons';
       buttons.append(up, down, remove);
       if (isTapType(habit)) bottom.appendChild(emojiEditor(habit));
+      if (typeOf(habit) === 'score') bottom.appendChild(directionSelect(habit));
       bottom.appendChild(buttons);
       row.append(input, type, section, bottom);
       return row;
