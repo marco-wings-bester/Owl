@@ -109,7 +109,7 @@
     font-variant-numeric: tabular-nums; user-select: text;
   }
   #value-range { width: 100%; accent-color: var(--accent); margin: 4px 0 18px; }
-  .scale-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 18px; }
+  .scale-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 18px; }
   .scale-grid button {
     height: 52px; border: 0; border-radius: 12px; background: var(--line); color: var(--text);
     font-size: 1.2rem; font-weight: 700; font-variant-numeric: tabular-nums;
@@ -257,7 +257,7 @@
         <button id="add-divider" type="button">➕ Add section line</button>
       </form>
     </div>
-    <p class="hint" style="text-align:left">Each habit has an input type: ✅ 😐 ❌, ✅ ❌, a 1–10 scale (e.g. headache), a 0–100 score, or any number (e.g. glasses of water). Tap an emoji box to pick your own emoji (clear it to go back to the default). Section lines split your list into groups (e.g. 🌅 Morning): move them with ↑ ↓ like habits, and every habit below a line belongs to it. If a line's name starts with an emoji, the habits under it show that emoji. Use ↑ ↓ to set the order. Removing a habit hides it but keeps its history.</p>
+    <p class="hint" style="text-align:left">Each habit has an input type: ✅ 😐 ❌, ✅ ❌, a 0–10 scale (e.g. headache), a 0–100 score, or any number (e.g. glasses of water). Tap an emoji box to pick your own emoji (clear it to go back to the default). Section lines split your list into groups (e.g. 🌅 Morning): move them with ↑ ↓ like habits, and every habit below a line belongs to it. If a line's name starts with an emoji, the habits under it show that emoji. Use ↑ ↓ to set the order. Removing a habit hides it but keeps its history.</p>
 
     <h2>Account</h2>
     <div id="account">
@@ -308,15 +308,15 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=23';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=23';
+  import { startCloud } from './cloud.js?v=24';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=24';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
   const TYPES = {
     check:  { label: '✅ 😐 ❌  Tap', states: ['', 'tick', 'avg', 'cross'] },
     yesno:  { label: '✅ ❌  Yes / no', states: ['', 'tick', 'cross'] },
-    scale:  { label: '1–10  Scale' },
+    scale:  { label: '0–10  Scale' },
     score:  { label: '0–100  Score' },
     number: { label: '123  Number' },
   };
@@ -341,6 +341,7 @@
     { id: 'nails', name: 'No Nail Biting' },
     { kind: 'divider', id: 'd_evening', name: '🌙 Evening' },
     { id: 'reading', name: 'Read 10 pages' },
+    { id: 'sugar_eaten', name: 'Sugar eaten', type: 'scale' },
   ];
   // The list mixes habits and section lines ({ kind: 'divider' }). A habit belongs to the nearest line above it.
   const isDivider = item => item.kind === 'divider';
@@ -547,12 +548,12 @@
     const n = Math.max(0, Number(v) || 0);
     const type = typeOf(editing.habit);
     if (type === 'score') return Math.min(100, Math.round(n));
-    if (type === 'scale') return Math.min(10, Math.max(1, Math.round(n)));
+    if (type === 'scale') return Math.min(10, Math.round(n));
     return Math.round(n * 100) / 100;
   }
-  // 1–10 habits get ten big buttons: one tap saves.
+  // 0–10 habits get eleven big buttons: one tap saves.
   const scaleGrid = document.getElementById('scale-grid');
-  for (let i = 1; i <= 10; i++) {
+  for (let i = 0; i <= 10; i++) {
     const b = Object.assign(document.createElement('button'), { type: 'button', textContent: i });
     b.addEventListener('click', () => { valueDialog.close(); setCell(editing.key, editing.habit.id, i); });
     scaleGrid.appendChild(b);
@@ -574,7 +575,7 @@
     scaleGrid.hidden = !scale;
     document.querySelector('#value-dialog .value-row').hidden = scale;
     document.getElementById('value-save').hidden = scale;
-    [...scaleGrid.children].forEach((b, i) => b.classList.toggle('selected', data[key]?.[habit.id] === i + 1));
+    [...scaleGrid.children].forEach((b, i) => b.classList.toggle('selected', data[key]?.[habit.id] === i));
     document.getElementById('value-title').textContent = habit.name;
     document.getElementById('value-date').textContent = habit.id === SLEEP
       ? `Night of ${shortDate(addDays(date, -1))} → ${shortDate(date)}`

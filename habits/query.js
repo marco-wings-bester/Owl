@@ -22,7 +22,7 @@ const SCORE = { tick: 1, avg: 0.5, cross: 0 };
 export const SCHEMA = `habit_list (
   habit_id  TEXT
   habit     TEXT
-  type      TEXT     -- 'check', 'yesno', 'scale' (1–10), 'score' (0–100) or 'number'
+  type      TEXT     -- 'check', 'yesno', 'scale' (0–10), 'score' (0–100) or 'number'
   section   TEXT     -- name of the section line above it, e.g. '🌅 Morning'
   active    INTEGER  -- 1 = tracked, 0 = removed
 )
