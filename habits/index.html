@@ -82,7 +82,6 @@
   td.cell button .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
 
   .hint { text-align: center; color: var(--muted); font-size: .78rem; margin: 4px 0 0; }
-  .card + .hint { margin-top: 14px; }
 
   #account {
     display: none; align-items: center; justify-content: space-between; gap: 12px;
@@ -194,31 +193,6 @@
   #settings-view h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 22px 4px 8px; }
   #settings-view #account { margin-top: 0; }
   .panel { background: var(--card); border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 14px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-  .chips button {
-    border: 1px solid var(--line); background: transparent; color: var(--text);
-    border-radius: 999px; padding: 6px 11px; font-size: .8rem;
-  }
-  #sql {
-    width: 100%; min-height: 130px; resize: vertical; border-radius: 10px;
-    border: 1px solid var(--line); background: var(--bg); color: var(--text); padding: 10px;
-    font: .85rem/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; user-select: text;
-  }
-  .run-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 10px; }
-  .run-row small { color: var(--muted); }
-  #run {
-    border: 0; border-radius: 10px; padding: 10px 18px;
-    background: var(--accent); color: #fff; font-weight: 600; font-size: .9rem;
-  }
-  #result { margin-top: 12px; font-size: .85rem; user-select: text; }
-  #result .error { color: #d9534f; white-space: pre-wrap; }
-  #result .meta { color: var(--muted); margin: 0 0 6px; }
-  .result-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; max-height: 60vh; }
-  .result-scroll table { table-layout: auto; width: max-content; min-width: 100%; }
-  .result-scroll th, .result-scroll td { text-align: left; padding: 7px 10px; white-space: nowrap; }
-  .result-scroll th { position: sticky; top: 0; background: var(--card); font-size: .75rem; color: var(--muted); }
-  details.schema { margin-top: 12px; color: var(--muted); font-size: .8rem; }
-  details.schema pre { margin: 8px 0 0; white-space: pre-wrap; font-size: .75rem; }
 </style>
 </head>
 <body>
@@ -239,7 +213,6 @@
       <tbody id="body"></tbody>
     </table>
   </div>
-  <p class="hint">Tap a square to change it · swipe to switch weeks</p>
   <p class="hint" id="sync-warning" hidden style="color:#d9534f"></p>
   <div class="install-banner" id="install-banner" hidden>
     <p id="install-text"></p>
@@ -279,20 +252,6 @@
     <button id="share">📤 Share this app</button>
     <p class="hint" id="share-note">Everyone who signs in gets their own private habits.</p>
 
-    <h2>Query your data</h2>
-    <div class="panel">
-      <div class="chips" id="examples"></div>
-      <textarea id="sql" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
-      <div class="run-row">
-        <small>Read-only · runs on your phone</small>
-        <button id="run">Run ▶</button>
-      </div>
-      <div id="result"></div>
-      <details class="schema">
-        <summary>Table &amp; columns</summary>
-        <pre id="schema"></pre>
-      </details>
-    </div>
   </div>
 
   <dialog id="value-dialog">
@@ -315,8 +274,7 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=27';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=27';
+  import { startCloud } from './cloud.js?v=28';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
@@ -648,51 +606,6 @@
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 
   render();
-
-  // ---- Settings screen ----
-  const sqlBox = document.getElementById('sql');
-  const resultBox = document.getElementById('result');
-  const SQL_KEY = 'habit-tracker-last-query';
-  try { sqlBox.value = localStorage.getItem(SQL_KEY) || EXAMPLES[1].sql; } catch { sqlBox.value = EXAMPLES[1].sql; }
-  document.getElementById('schema').textContent = SCHEMA;
-
-  function escapeHtml(v) {
-    return String(v ?? 'NULL').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  }
-
-  async function run() {
-    const sql = sqlBox.value.trim();
-    if (!sql) return;
-    try { localStorage.setItem(SQL_KEY, sql); } catch {}
-    resultBox.innerHTML = '<p class="meta">Running…</p>';
-    try {
-      const { columns, rows } = await runQuery(sql, data, habits);
-      if (!columns.length) {
-        resultBox.innerHTML = '<p class="meta">No results.</p>';
-        return;
-      }
-      const shown = rows.slice(0, 500);
-      resultBox.innerHTML =
-        `<p class="meta">${rows.length} row${rows.length === 1 ? '' : 's'}${rows.length > shown.length ? ' (showing first 500)' : ''}</p>` +
-        '<div class="result-scroll"><table><thead><tr>' +
-        columns.map(c => `<th>${escapeHtml(c)}</th>`).join('') +
-        '</tr></thead><tbody>' +
-        shown.map(r => '<tr>' + r.map(v => `<td>${escapeHtml(v)}</td>`).join('') + '</tr>').join('') +
-        '</tbody></table></div>';
-    } catch (err) {
-      resultBox.innerHTML = `<p class="error">⚠️ ${escapeHtml(err.message)}</p>`;
-    }
-  }
-
-  const examples = document.getElementById('examples');
-  for (const ex of EXAMPLES) {
-    const b = document.createElement('button');
-    b.textContent = ex.label;
-    b.addEventListener('click', () => { sqlBox.value = ex.sql; run(); });
-    examples.appendChild(b);
-  }
-  document.getElementById('run').addEventListener('click', run);
-  sqlBox.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) run(); });
 
   // ---- Habit editor ----
   const habitList = document.getElementById('habit-list');
