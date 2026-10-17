@@ -108,11 +108,28 @@
   .score.bad { color: #d9534f; }
   .score.calm { color: var(--calm); }
   .score.warn { color: var(--warn); }
-  #value-dialog {
+  #value-dialog, #confirm-dialog {
     border: 0; border-radius: 18px 18px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
     width: 100%; max-width: 560px; margin: auto auto 0; background: var(--card); color: var(--text);
   }
-  #value-dialog::backdrop { background: rgba(0,0,0,.45); }
+  #value-dialog::backdrop, #confirm-dialog::backdrop { background: rgba(0,0,0,.45); }
+  /* Warning sheet for reset / clear */
+  #confirm-dialog h3 { margin: 0 0 6px; font-size: 1.1rem; color: #d9534f; }
+  #confirm-body { font-size: .9rem; line-height: 1.45; margin-bottom: 16px; max-height: 50vh; overflow-y: auto; }
+  #confirm-body p { margin: 0 0 10px; }
+  #confirm-body .group { margin: 0 0 10px; }
+  #confirm-body .group b { display: block; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 2px; }
+  #confirm-body .safe { color: var(--accent); }
+  #confirm-cancel { background: var(--line); color: var(--text); }
+  #confirm-ok { background: #d9534f; color: #fff; }
+  /* Undo toast */
+  #toast {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom));
+    width: calc(100% - 32px); max-width: 528px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--text); color: var(--bg); border-radius: 12px; padding: 10px 10px 10px 16px; font-size: .9rem;
+    box-shadow: 0 4px 16px rgba(0,0,0,.3); z-index: 20;
+  }
+  #toast button { border: 0; background: transparent; color: var(--accent); font-weight: 700; font-size: .95rem; padding: 8px 10px; }
   #value-dialog h3 { margin: 0 0 4px; font-size: 1.05rem; }
   #value-dialog p { margin: 0 0 16px; color: var(--muted); font-size: .85rem; }
   .value-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 12px; }
@@ -321,9 +338,21 @@
     </form>
   </dialog>
 
+  <dialog id="confirm-dialog">
+    <form method="dialog">
+      <h3 id="confirm-title"></h3>
+      <div id="confirm-body"></div>
+      <div class="value-actions">
+        <button value="cancel" id="confirm-cancel" autofocus>Cancel</button>
+        <button value="ok" id="confirm-ok"></button>
+      </div>
+    </form>
+  </dialog>
+  <div id="toast" hidden><span id="toast-text"></span><button id="toast-undo">Undo</button></div>
+
 <script type="module">
   // Bump ?v=, APP_VERSION (below) and CACHE in sw.js together on every release.
-  import { startCloud } from './cloud.js?v=31';
+  import { startCloud } from './cloud.js?v=32';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
@@ -918,7 +947,7 @@
 
   // ---- Update app ----
   // The version in sw.js on the server is compared with this page's version.
-  const APP_VERSION = 31;
+  const APP_VERSION = 32;
   const updateStatus = document.getElementById('update-status');
   const updateRow = document.getElementById('update-app');
   async function latestVersion() {
@@ -969,7 +998,8 @@
   });
   // Reset the list to DEFAULT_HABITS. Habits that match a default (same id or same name) keep their
   // id, so their history carries over; anything else is hidden (archived) with its history kept.
-  function resetToDefaults() {
+  // Works out the default list (without applying it) plus what would change, for the warning.
+  function planReset() {
     const existing = habits.filter(h => !isDivider(h));
     const matched = new Set();
     const takenIds = new Set();
@@ -986,19 +1016,90 @@
       return item;
     });
     for (const h of existing) if (!matched.has(h)) list.push({ ...h, archived: true });
+    const strip = ({ id, archived, ...rest }) => JSON.stringify(rest);
+    const hidden = existing.filter(h => !h.archived && !matched.has(h)).map(h => h.name);
+    const added = list.filter(h => !isDivider(h) && !h.archived && !existing.some(e => e.id === h.id && !e.archived)).map(h => h.name);
+    const changed = list.filter(h => !isDivider(h) && !h.archived).flatMap(h => {
+      const old = existing.find(e => e.id === h.id && !e.archived);
+      if (!old || strip(old) === strip(h)) return [];
+      return [old.name === h.name ? h.name : `${old.name} → ${h.name}`];
+    });
+    return { list, hidden, added, changed };
+  }
+
+  // A bottom-sheet warning with a red confirm button. Resolves true only if confirmed.
+  const confirmDialog = document.getElementById('confirm-dialog');
+  function warn(title, sections, actionLabel) {
+    document.getElementById('confirm-title').textContent = title;
+    const body = document.getElementById('confirm-body');
+    body.innerHTML = '';
+    for (const { heading, text, items, safe } of sections) {
+      const el = document.createElement(heading ? 'div' : 'p');
+      if (heading) {
+        el.className = 'group';
+        el.appendChild(Object.assign(document.createElement('b'), { textContent: heading }));
+        el.append(items?.length ? items.join(', ') : text);
+      } else {
+        el.textContent = text;
+        if (safe) el.className = 'safe';
+      }
+      body.appendChild(el);
+    }
+    document.getElementById('confirm-ok').textContent = actionLabel;
+    confirmDialog.returnValue = '';
+    confirmDialog.showModal();
+    return new Promise(resolve => confirmDialog.addEventListener('close', () => resolve(confirmDialog.returnValue === 'ok'), { once: true }));
+  }
+  confirmDialog.addEventListener('click', e => { if (e.target === confirmDialog) confirmDialog.close('cancel'); });
+
+  // Short-lived "Undo" after a reset or clear.
+  let undoTimer = null;
+  function offerUndo(text, before) {
+    const toast = document.getElementById('toast');
+    document.getElementById('toast-text').textContent = text;
+    toast.hidden = false;
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(() => { toast.hidden = true; }, 10000);
+    document.getElementById('toast-undo').onclick = () => {
+      clearTimeout(undoTimer);
+      toast.hidden = true;
+      habits = before;
+      habitsChanged();
+      document.getElementById('habits-summary').textContent = habitsSummary();
+    };
+  }
+
+  document.getElementById('reset-habits').addEventListener('click', async () => {
+    const { list, hidden, added, changed } = planReset();
+    const sections = [
+      { text: 'This replaces your habit list with the default list. Your own setup will be lost:' },
+      { heading: 'Removed from your list', items: hidden, text: 'Nothing' },
+      { heading: 'Added', items: added, text: 'Nothing' },
+      { heading: 'Settings overwritten (name, type, emojis, colours, order)', items: changed, text: 'Nothing' },
+      { text: 'Your section lines are replaced with Day and Night.' },
+      { text: '✓ Past entries are kept. Removed habits come back if you add one with the same name.', safe: true },
+    ];
+    if (!await warn('Reset to default habits?', sections, 'Reset habits')) return;
+    const before = structuredClone(habits);
     habits = list;
     habitsChanged();
-  }
-  document.getElementById('reset-habits').addEventListener('click', () => {
-    if (!confirm('Reset your habits to the default list? Your history is kept.')) return;
-    resetToDefaults();
     document.getElementById('habits-summary').textContent = habitsSummary();
+    offerUndo('Habits reset to default', before);
   });
-  document.getElementById('clear-habits').addEventListener('click', () => {
-    if (!confirm('Clear all habits? Your history is kept: add a habit with the same name to bring it back, or use Reset to default habits.')) return;
+  document.getElementById('clear-habits').addEventListener('click', async () => {
+    const names = activeHabits().map(h => h.name);
+    if (!names.length) return;
+    const sections = [
+      { text: 'This removes every habit and section line from your list, leaving it empty.' },
+      { heading: `Removed (${names.length})`, items: names },
+      { text: '✓ Past entries are kept. Add a habit with the same name, or use Reset to default habits, to bring them back.', safe: true },
+    ];
+    if (!await warn('Clear all habits?', sections, 'Clear all habits')) return;
+    const before = structuredClone(habits);
     habits = habits.filter(h => !isDivider(h)).map(h => ({ ...h, archived: true }));
     habitsChanged();
     document.getElementById('habits-summary').textContent = habitsSummary();
+    offerUndo('All habits cleared', before);
   });
 
   document.getElementById('open-habits').addEventListener('click', () => {
