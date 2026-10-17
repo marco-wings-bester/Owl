@@ -237,7 +237,6 @@
         <button id="add-divider" type="button">➕ Add section line</button>
       </form>
     </div>
-    <p class="hint" style="text-align:left">Each habit has an input type: ✅ 😐 ❌, ✅ ❌, a 0–10 scale (e.g. headache), a 0–100 score, or any number (e.g. glasses of water). Tap an emoji box to pick your own emoji (clear it to go back to the default). Section lines split your list into groups (e.g. 🌅 Morning): move them with ↑ ↓ like habits, and every habit below a line belongs to it. If a line's name starts with an emoji, the habits under it show that emoji. Use ↑ ↓ to set the order. Removing a habit hides it but keeps its history.</p>
 
     <h2>Account</h2>
     <div id="account">
@@ -274,7 +273,7 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=28';
+  import { startCloud } from './cloud.js?v=29';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
