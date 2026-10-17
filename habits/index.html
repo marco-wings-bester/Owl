@@ -81,8 +81,8 @@
   td.cell button:disabled { cursor: default; opacity: .25; }
   td.cell button .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
 
-  .legend { display: flex; justify-content: center; gap: 16px; color: var(--muted); font-size: .85rem; margin: 14px 0 4px; }
   .hint { text-align: center; color: var(--muted); font-size: .78rem; margin: 4px 0 0; }
+  .card + .hint { margin-top: 14px; }
 
   #account {
     display: none; align-items: center; justify-content: space-between; gap: 12px;
@@ -239,7 +239,6 @@
       <tbody id="body"></tbody>
     </table>
   </div>
-  <div class="legend"><span>✅ done</span><span>😐 so-so</span><span>❌ missed</span></div>
   <p class="hint">Tap a square to change it · swipe to switch weeks</p>
   <p class="hint" id="sync-warning" hidden style="color:#d9534f"></p>
   <div class="install-banner" id="install-banner" hidden>
@@ -316,8 +315,8 @@
 
 <script type="module">
   // Bump ?v= (and CACHE in sw.js) on every release so all files update together.
-  import { startCloud } from './cloud.js?v=26';
-  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=26';
+  import { startCloud } from './cloud.js?v=27';
+  import { runQuery, EXAMPLES, SCHEMA } from './query.js?v=27';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
