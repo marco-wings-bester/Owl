@@ -209,6 +209,7 @@
   .menu-row small { font-weight: 400; color: var(--muted); font-size: .8rem; }
   .menu-row .chev { color: var(--muted); font-size: 1.3rem; }
   .menu-row.highlight small { color: var(--accent); font-weight: 600; }
+  .menu-row.danger .text { color: #d9534f; }
   #settings-view #account { margin-top: 0; }
   .panel { background: var(--card); border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 14px; }
 </style>
@@ -258,6 +259,14 @@
         <span class="icon">📝</span>
         <span class="text">Habit setup <small id="habits-summary"></small></span>
         <span class="chev">›</span>
+      </button>
+      <button class="menu-row" id="reset-habits">
+        <span class="icon">↺</span>
+        <span class="text">Reset to default habits <small>Your history is kept</small></span>
+      </button>
+      <button class="menu-row danger" id="clear-habits">
+        <span class="icon">🗑️</span>
+        <span class="text">Clear all habits <small>Your history is kept; re-add a habit by name to bring it back</small></span>
       </button>
 
       <h2>Share</h2>
@@ -314,7 +323,7 @@
 
 <script type="module">
   // Bump ?v=, APP_VERSION (below) and CACHE in sw.js together on every release.
-  import { startCloud } from './cloud.js?v=30';
+  import { startCloud } from './cloud.js?v=31';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
@@ -337,7 +346,7 @@
     { id: 'stress', name: 'Stress', type: 'score', lowerIsBetter: true },
     { id: 'headache', name: 'Headache', type: 'scale' },
     { kind: 'divider', id: 'd_day', name: 'Day' },
-    { id: 'caffeine', name: 'No Caffeine' },
+    { id: 'caffeine', name: 'Caffeine', type: 'yesno', emoji: { tick: '❌', cross: '☕' } }, // ❌ = caffeine-free day
     { id: 'swim', name: 'Swim', type: 'yesno', emoji: { tick: '🏊‍♂️' } },
     { id: 'exercise', name: 'Exercise' },
     { id: 'nails', name: 'No Nail Biting' },
@@ -909,7 +918,7 @@
 
   // ---- Update app ----
   // The version in sw.js on the server is compared with this page's version.
-  const APP_VERSION = 30;
+  const APP_VERSION = 31;
   const updateStatus = document.getElementById('update-status');
   const updateRow = document.getElementById('update-app');
   async function latestVersion() {
@@ -944,6 +953,7 @@
   // ---- Settings navigation ----
   function habitsSummary() {
     const n = activeHabits().length;
+    if (!n) return 'No habits yet · tap to add some';
     const lines = activeItems().filter(isDivider).length;
     return `${n} habit${n === 1 ? '' : 's'}${lines ? ` · ${lines} section${lines === 1 ? '' : 's'}` : ''} · add, edit and reorder`;
   }
@@ -957,6 +967,40 @@
     document.body.classList.remove('settings-open', 'habits-open');
     render();
   });
+  // Reset the list to DEFAULT_HABITS. Habits that match a default (same id or same name) keep their
+  // id, so their history carries over; anything else is hidden (archived) with its history kept.
+  function resetToDefaults() {
+    const existing = habits.filter(h => !isDivider(h));
+    const matched = new Set();
+    const takenIds = new Set();
+    const findMatch = d => existing.find(h => !matched.has(h) && h.id === d.id)
+      || existing.find(h => !matched.has(h) && h.name.trim().toLowerCase() === d.name.toLowerCase());
+    const list = DEFAULT_HABITS.map(d => {
+      const item = structuredClone(d);
+      if (!isDivider(d)) {
+        const m = findMatch(d);
+        if (m) { matched.add(m); item.id = m.id; }
+      }
+      if (takenIds.has(item.id) || (!isDivider(d) && existing.some(h => h.id === item.id && !matched.has(h)))) item.id = newId('h');
+      takenIds.add(item.id);
+      return item;
+    });
+    for (const h of existing) if (!matched.has(h)) list.push({ ...h, archived: true });
+    habits = list;
+    habitsChanged();
+  }
+  document.getElementById('reset-habits').addEventListener('click', () => {
+    if (!confirm('Reset your habits to the default list? Your history is kept.')) return;
+    resetToDefaults();
+    document.getElementById('habits-summary').textContent = habitsSummary();
+  });
+  document.getElementById('clear-habits').addEventListener('click', () => {
+    if (!confirm('Clear all habits? Your history is kept: add a habit with the same name to bring it back, or use Reset to default habits.')) return;
+    habits = habits.filter(h => !isDivider(h)).map(h => ({ ...h, archived: true }));
+    habitsChanged();
+    document.getElementById('habits-summary').textContent = habitsSummary();
+  });
+
   document.getElementById('open-habits').addEventListener('click', () => {
     renderHabitEditor();
     document.body.classList.add('habits-open');
