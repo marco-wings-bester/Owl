@@ -352,7 +352,7 @@
 
 <script type="module">
   // Bump ?v=, APP_VERSION (below) and CACHE in sw.js together on every release.
-  import { startCloud } from './cloud.js?v=32';
+  import { startCloud } from './cloud.js?v=33';
 
   // The habits you track. Removed habits stay in the list as `archived` so their history keeps its name.
   // Each habit has an input type. Tap-types cycle through their states; score/number open an input sheet.
@@ -947,7 +947,7 @@
 
   // ---- Update app ----
   // The version in sw.js on the server is compared with this page's version.
-  const APP_VERSION = 32;
+  const APP_VERSION = 33;
   const updateStatus = document.getElementById('update-status');
   const updateRow = document.getElementById('update-app');
   async function latestVersion() {
